@@ -1,6 +1,10 @@
 # ER diagram
 
-Mermaid source; renders on GitHub. Export a PNG/PDF for the submission (mermaid.live or `npx @mermaid-js/mermaid-cli`).
+Mermaid source (renders on GitHub). The image below is generated from it by `npx tsx scripts/render-er.ts`.
+
+![ER diagram](er-diagram.png)
+
+The relational schema in text form, with every column, is in [DESIGN.md](DESIGN.md) and the generated [DATA-DICTIONARY.md](DATA-DICTIONARY.md).
 
 ```mermaid
 erDiagram
@@ -84,8 +88,8 @@ erDiagram
     int latency_ms
   }
   QUERY_EVIDENCE {
-    bigint query_id PK_FK
-    bigint claim_id PK_FK
+    bigint query_id PK, FK
+    bigint claim_id PK, FK
     evidence_role role
     smallint rank
     real similarity

@@ -1,120 +1,82 @@
-# ConRAG plan
+# ConRAG: problem, scope and plan
 
 **ConRAG: a contradiction-aware retrieval-augmented generation system for detecting conflicting knowledge.**
-Course: PES DBMS Experiential Learning, Level 3 (2-member team). Requirement-by-requirement coverage is in [requirements-map.md](requirements-map.md).
+Course: PES DBMS Experiential Learning, Level 3. Requirement-by-requirement coverage: [requirements-map.md](requirements-map.md).
 
-## Problem
+## Problem statement
 
-A plain RAG system retrieves the top-k chunks and answers from them. When two documents disagree (an old circular says 75% attendance, a department notice says 85%), it picks one and answers confidently. The user never learns a conflict existed.
+A plain RAG system retrieves the top-k chunks and answers from them. When two documents in the knowledge base disagree (an old circular says 75 % attendance, a department notice says 85 %), it picks one and answers confidently. The user never learns a conflict existed, and wrong-but-confident answers are the worst failure of a knowledge assistant.
 
-ConRAG detects the conflict at **ingest time**, stores it as data, and at **query time** answers with the supporting evidence, the contradicting evidence, and a source-weighted lean. Humans (admins) can resolve a conflict, which feeds back into retrieval and source reliability.
+Real knowledge bases are full of such conflicts: policies change, sources differ in authority, wikis go stale. Today they are found by accident, if at all.
+
+## Motivation for the database angle
+
+The interesting part is not calling a language model; it is **storing knowledge so that conflicts are first-class data**: claims with provenance and vectors, pairwise relations with confidence, resolutions that change what is retrieved, an audit trail, and per-source reliability computed from the history. That is a relational-plus-vector problem, which is why it fits a DBMS project and why it is not CRUD.
 
 ## Objectives
 
-1. Ingest documents from sources with different trust levels.
-2. Break documents into atomic claims and find claims that contradict each other across documents.
-3. Answer questions showing both sides of any conflict, with provenance.
-4. Let an admin resolve conflicts; resolved-away claims stop being retrieved.
-5. Measure it: ConRAG vs plain RAG on questions with planted conflicts.
+1. Ingest documents from sources of different trust.
+2. Split documents into atomic claims and find claims that contradict (or corroborate) each other across documents.
+3. Answer questions showing both sides of any conflict, with provenance and a justified lean.
+4. Let an admin resolve conflicts; resolved-away claims stop being retrieved and the losing source's reliability drops.
+5. Enforce the integrity of all of this in the database, not only in application code.
+6. Measure it against a plain RAG on a labelled corpus.
 
 ## Scope
 
-In: text/markdown documents, one embedding model, one judge model, three roles, conflicts dashboard, evaluation set.
-Out (cut list): PDF/OCR parsing, multi-language, streaming UI polish, fine-tuned NLI model, multi-tenant orgs.
+**In:** text and markdown documents; one embedding model; a pluggable judge (rule-based fallback, Claude optional); three roles; Next.js interface for asking, reviewing, ingesting, searching and administration; evaluation harness; automated tests.
 
-## Database choice (PostgreSQL + pgvector, SQL + vector option)
+**Out (cut list):** PDF/OCR parsing; multi-language; streaming answers; a fine-tuned NLI model; multi-tenant organisations; email verification and password reset; distributed rate limiting.
 
-| Data | Store | Why |
+## Functional requirements
+
+| # | Requirement | Role |
 |---|---|---|
-| Users, sources, documents, claims, relations, resolutions, queries, audit | PostgreSQL tables | Strongly related, needs FKs, constraints, transactions, aggregates. |
-| Chunk and claim embeddings | pgvector `vector(384)` + HNSW (cosine) | Retrieval and candidate-conflict search are nearest-neighbour. Same engine means one transaction can write a claim and its embedding, and one query can join similarity to trust scores. |
-| Keyword search over documents | Postgres `tsvector` + GIN | Exact-term lookup complements semantic search. |
+| F1 | Register (viewer), sign in, sign out | public |
+| F2 | Ask a question and receive an answer with supporting and contradicting evidence, source, date and trust | all |
+| F3 | See what a plain RAG would answer for the same question | all |
+| F4 | Browse and filter conflicts (status, source, confidence, text) | all |
+| F5 | Search documents with full-text queries; view a document with its claims and their relations | all |
+| F6 | Ingest a document and see the claims and conflicts it created | analyst, admin |
+| F7 | Resolve a conflict by keeping one claim, dismiss a false alarm, undo a resolution | admin |
+| F8 | Manage sources (trust, kind) and see computed reliability | admin (edit), all (view) |
+| F9 | Manage users and roles; never lose the last admin | admin |
+| F10 | View question history with the evidence used; view the audit log | own history: all; all history and audit: admin |
+| F11 | Every change to relations, resolutions and sources is audited by the database | system |
 
-A separate vector DB or document store would add a second system with no cross-store transactions; the claim/relation data is relational, so a document store buys nothing. Graph (Neo4j) was considered for the contradiction graph and rejected: the graph is shallow (pairs), and a recursive CTE covers any clustering we need.
+Non-functional: parameterised SQL only, secrets from the environment, bcrypt passwords, validation in the database, ingest is atomic, answers in well under a second on the demo corpus.
 
-## Architecture
+## Architecture and design
 
-```
-Next.js (App Router)
- ├─ UI: login, Ask, Conflicts, Ingest, Sources/Admin
- └─ Route Handlers  (/api/*)  ── session cookie (jose) + role check
-        │
-        ├─ ingest:  chunk → embed → extract claims → candidate search → judge → store   (one transaction)
-        ├─ ask:     embed question → find_similar_claims → retrieve_conflicts → answer
-        └─ admin:   resolve conflict, edit source trust
-        │
-   PostgreSQL 17 + pgvector   (docker compose, or `npm run db:dev` with no Docker)
-```
+See [ARCHITECTURE.md](ARCHITECTURE.md) (components, pipelines, scoring) and [DESIGN.md](DESIGN.md) (database choice, relational schema, vector model, integrity, decisions).
 
-### Pipelines
+## Phases and status
 
-**Ingest** (`analyst`, `admin`): 1) hash the body, reject duplicates (`content_hash UNIQUE`); 2) split into chunks (~200 tokens, small overlap); 3) embed chunks locally with `Xenova/all-MiniLM-L6-v2` (384-d, cosine) through `@huggingface/transformers`, no API key; 4) the LLM extracts atomic claims per chunk; 5) embed each claim; 6) for every new claim, `find_similar_claims(vec, 10, exclude_doc)` gives cross-document candidates above a similarity floor; 7) the LLM judge labels each pair `contradicts | supports | neutral` with confidence and rationale; 8) insert documents, chunks, claims, relations inside one `BEGIN … COMMIT`.
+| # | Deliverable | Status |
+|---|---|---|
+| 0 | Repo, schema, dev database, tests | done |
+| 1 | Auth, roles, sources and users administration | done |
+| 2 | Ingest pipeline (chunk, embed, claims, shortlist, judge, one transaction) | done |
+| 3 | Ask pipeline and interface (grouping, scoring, plain-RAG comparison) | done |
+| 4 | Conflicts review, resolve, dismiss, undo; audit | done |
+| 5 | Evaluation harness and labelled corpus | done |
+| 6 | Documentation, screenshots, ER image, data dictionary, query pack, demo script | done |
 
-**Ask** (any role): embed the question; `find_similar_claims` for top-k; `retrieve_conflicts` for contradiction pairs inside that set; group claims into "agree" and "disagree"; weight sides by `source_reliability`, recency and corroboration count; the LLM writes an answer given both sides and must cite claim ids; store the query and `query_evidence`.
+## Team and contributions
 
-**Resolve** (`admin`): insert a `conflict_resolutions` row; trigger supersedes the loser; reliability of the loser's source drops.
+Built by one student working alone. The brief expects two-member teams, so this needs the instructor's approval (see the open questions in the requirements map). All database, backend and interface work is in this repository's history. If a team is formed later, the natural split is *database and pipelines* (`db/`, `src/lib/ingest.ts`, `src/lib/ask.ts`, `src/lib/judge-offline.ts`) versus *application* (`src/app`, `src/components`, auth, tests).
 
-### Models
+## Risks and mitigations
 
-Local embeddings (free, offline). Judge and answer generation use Anthropic via `@anthropic-ai/sdk`: a small, cheap model for claim extraction and pair judging, a stronger one for the final answer. Model ids live in `.env`/constants, not scattered.
-
-## Schema summary
-
-Full DDL: `db/migrations/`. ER diagram: [er-diagram.md](er-diagram.md).
-
-- `001_init.sql`: tables, PK/FK, CHECK/UNIQUE/NOT NULL, HNSW/GIN/btree/partial indexes.
-- `002_claim_status.sql`: `ALTER TABLE` (adds `claims.status`) plus a constraint tying status to `superseded_at`.
-- `003_functions_triggers_views.sql`: `find_similar_claims`, `retrieve_conflicts`, `source_reliability`; triggers `relation_guard`, `resolution_check`, `resolution_apply`, `audit_row`; views `v_open_conflicts`, `v_source_stats`.
-
-Advanced concepts demonstrated (need ≥4, we have 8): transactions (ingest), views, stored functions, triggers, indexing (HNSW, GIN, partial), full-text search, vector similarity search, composite-FK integrity.
-
-## Roles
-
-| Role | Can |
+| Risk | Mitigation |
 |---|---|
-| `admin` | everything; resolve conflicts, edit sources and trust, manage users |
-| `analyst` | ingest documents, ask, view conflicts |
-| `viewer` | ask, view conflicts |
+| Judge errors (false contradictions on different scopes) | Scope and audience guards; masked-embedding gate; confidence stored; admin can dismiss; evaluation lists every disagreement with the labels |
+| Judge cost and latency | Vector shortlist (5 per claim) bounds calls; judging happens once at ingest |
+| Embedding model weak on negation | Embeddings only shortlist; the judge decides |
+| Prompt injection through documents | Pattern rejection, fenced prompts, no tool access for the model |
+| No Docker on a development machine | `npm run db:dev` runs PostgreSQL + pgvector in-process; docker-compose is provided for a real server |
+| Single-process rate limiter | Documented limit; move counters to the database if scaled out |
 
-Passwords bcrypt-hashed; session is a signed httpOnly cookie; secrets only in `.env`; every query parameterised; role checked server-side in each route handler.
+## Future work
 
-## Phases
-
-| # | Deliverable | Done when |
-|---|---|---|
-| 0 | Repo, schema, dev DB, smoke test | `npm run db:migrate && npm run db:test` pass. **Done.** |
-| 1 | Auth + roles; sources CRUD (admin) | login works, viewer blocked from ingest |
-| 2 | Ingest pipeline | upload a doc, see claims and relations rows |
-| 3 | Ask pipeline + UI | answer shows supporting / contradicting evidence |
-| 4 | Conflicts dashboard + resolve flow | resolve changes retrieval and reliability |
-| 5 | Evaluation | table: plain RAG vs ConRAG over the labelled set |
-| 6 | Docs, screenshots, demo script | every item in the PDF's documentation list present |
-
-Phase order is strict: nothing in 3 until 2 produces real relations.
-
-## Demo corpus
-
-Synthetic campus-policy documents (attendance, exam rules, fee deadlines, hostel timings) across four sources of differing trust, with deliberately planted contradictions and some near-misses that are *not* contradictions (different scope, different year). 30 labelled questions: 15 with a real conflict, 10 without, 5 where the conflict is a false alarm. Synthetic on purpose: ground truth is known and nothing copyrighted or private is ingested.
-
-## Evaluation
-
-Plain RAG baseline (same embeddings, top-k chunks, same answer model, no conflict data) vs ConRAG. Metrics: conflict detection precision/recall on labelled pairs; "answer discloses the conflict" rate; wrong-confident-answer rate; latency.
-
-## Team split (2 members)
-
-Both members touch database and application, as the brief requires. Suggested ownership, swap pieces as needed:
-
-| | Member A | Member B |
-|---|---|---|
-| Primary | schema, migrations, SQL functions/triggers, ingest pipeline, judge prompts | auth, route handlers, Next.js UI (Ask, Conflicts, Admin) |
-| Secondary | Ask API endpoint | one trigger + one view + the evaluation harness |
-| Shared | ER diagram, tests, docs, demo | |
-
-Rule for the "individual contributions" requirement: small commits under each member's own git identity, feature branches, PRs reviewed by the other member.
-
-## Risks
-
-- **Judge errors** (false contradictions: different scope or date). Mitigation: judge prompt forces scope/date comparison; confidence stored; low-confidence relations shown as "possible".
-- **Cost/latency** of pairwise judging. Mitigation: vector shortlist (k≤10, similarity floor) so judging is O(claims × k), not O(claims²).
-- **Embedding model weak on negation** (contradictory sentences embed close, which is what we want for candidate search, but unrelated pairs may too). Mitigation: judge is the arbiter; embeddings only shortlist.
-- **No Docker on dev machine.** `npm run db:dev` runs PGlite (Postgres in WASM + pgvector); real Postgres via compose is the target for the demo and is what the docs describe.
+Model-based judge calibration on a larger human-labelled set; temporal validity ("true until 2025-06") as a first-class column; claim-level provenance spans in the original text; scheduled re-judging when the judge improves; PDF ingestion; per-source reliability learned from resolutions with a proper Bayesian update.

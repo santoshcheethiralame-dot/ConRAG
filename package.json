@@ -15,7 +15,9 @@
     "test": "tsx scripts/run-tests.ts",
     "demo:load": "tsx --env-file=.env scripts/load-demo.ts",
     "eval": "tsx scripts/eval.ts",
-    "test:e2e": "next build && tsx scripts/run-e2e.ts"
+    "test:e2e": "next build && tsx scripts/run-e2e.ts",
+    "docs": "tsx --env-file=.env scripts/gen-docs.ts",
+    "docs:er": "tsx scripts/render-er.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",
