@@ -10,8 +10,9 @@
     "typecheck": "tsc --noEmit",
     "db:dev": "tsx scripts/dev-db.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:test": "tsx --env-file=.env db/tests/smoke.ts",
-    "db:seed":"tsx --env-file=.env scripts/seed.ts"
+    "db:reset": "tsx --env-file=.env scripts/migrate.ts --reset",
+    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "test": "tsx scripts/run-tests.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",

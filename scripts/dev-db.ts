@@ -1,17 +1,11 @@
-// Docker-free Postgres for local dev: PGlite (real Postgres in WASM) + pgvector,
-// exposed over the wire protocol so the app and `pg` connect normally.
-import { PGlite } from "@electric-sql/pglite";
-import { vector } from "@electric-sql/pglite-pgvector";
-import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
+// Docker-free Postgres for local dev: persistent data in .pgdata on port 5433.
+import { startPgServer } from "./lib/pgserver";
 
 async function main() {
-  const db = await PGlite.create({ dataDir: "./.pgdata", extensions: { vector } });
-  const server = new PGLiteSocketServer({ db, host: "127.0.0.1", port: 5433, maxConnections: 10 });
-  await server.start();
+  const server = await startPgServer({ port: 5433, dataDir: "./.pgdata" });
   console.log("dev db listening on 127.0.0.1:5433 (data in .pgdata)");
   process.on("SIGINT", async () => {
     await server.stop();
-    await db.close();
     process.exit(0);
   });
 }
