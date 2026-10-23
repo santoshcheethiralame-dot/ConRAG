@@ -1,6 +1,7 @@
-// Demo users (one per role) and sources. Documents/claims come from the ingest pipeline.
+// Demo users (one per role) and the demo sources. Documents come from `npm run demo:load`.
 import bcrypt from "bcryptjs";
 import { Client } from "pg";
+import { loadSources } from "./lib/corpus";
 
 const USERS = [
   ["admin@conrag.test", "admin"],
@@ -8,16 +9,10 @@ const USERS = [
   ["viewer@conrag.test", "viewer"],
 ] as const;
 
-const SOURCES = [
-  ["University Circular", "official", 0.9],
-  ["Department Notice Board", "internal", 0.6],
-  ["Student Wiki", "wiki", 0.4],
-  ["Campus News Blog", "news", 0.5],
-] as const;
-
 async function main() {
   const { DATABASE_URL, SEED_PASSWORD } = process.env;
   if (!DATABASE_URL || !SEED_PASSWORD) throw new Error("DATABASE_URL and SEED_PASSWORD must be set");
+  if (SEED_PASSWORD.length < 8) throw new Error("SEED_PASSWORD must be at least 8 characters");
   const hash = await bcrypt.hash(SEED_PASSWORD, 10);
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
@@ -27,16 +22,16 @@ async function main() {
       [email, hash, role],
     );
   }
-  for (const [name, kind, trust] of SOURCES) {
+  for (const s of loadSources()) {
     await client.query(
-      "INSERT INTO sources (name, kind, trust_score) VALUES ($1, $2, $3) ON CONFLICT (name) DO NOTHING",
-      [name, kind, trust],
+      "INSERT INTO sources (name, kind, trust_score, url) VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING",
+      [s.name, s.kind, s.trust, s.url],
     );
   }
   await client.end();
-  console.log("seeded");
+  console.log("seeded users and sources");
 }
 main().catch((e) => {
-  console.error(e);
+  console.error(e.message ?? e);
   process.exit(1);
 });

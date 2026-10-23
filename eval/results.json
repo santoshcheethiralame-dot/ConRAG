@@ -1,0 +1,34 @@
+{
+  "llm": "offline-rules",
+  "matrix": {
+    "contradicts": {
+      "contradicts": 17,
+      "supports": 0,
+      "neutral": 0
+    },
+    "supports": {
+      "contradicts": 0,
+      "supports": 8,
+      "neutral": 0
+    },
+    "neutral": {
+      "contradicts": 1,
+      "supports": 0,
+      "neutral": 7
+    }
+  },
+  "precision": 0.85,
+  "recall": 1,
+  "f1": 0.9189189189189189,
+  "questions": {
+    "cQ": 16,
+    "disclosed": 16,
+    "leanRight": 16,
+    "leanWrong": 0,
+    "undecided": 0,
+    "plainRight": 8,
+    "plainWrong": 8,
+    "nQ": 12,
+    "falseAlarms": 1
+  }
+}

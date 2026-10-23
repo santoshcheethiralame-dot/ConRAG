@@ -40,6 +40,8 @@ const SCOPE_PATTERNS: RegExp[] = [
   /\b(international|foreign|day scholars?|hostellers?|scholarship holders?|visiting)\b/g,
 ];
 
+const ROLE_RE = /\b(student|faculty|staff|alumni|researcher|visitor|parent|guest)s?\b/g;
+
 const UNIT_ALIASES: [RegExp, string][] = [
   [/^(%|percent|percentage)$/, "%"],
   [/^(rs\.?|inr|₹|rupees?)$/, "inr"],
@@ -57,6 +59,11 @@ function normalise(t: string): string {
     .replace(/(\d),(\d{3})/g, "$1$2")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Audiences a claim talks about (students, faculty, visitors...). */
+export function roleTokens(t: string): Set<string> {
+  return new Set([...t.matchAll(ROLE_RE)].map((m) => m[1]));
 }
 
 export function scopeTokens(t: string): Set<string> {
@@ -118,7 +125,7 @@ const sameSet = <T,>(a: Set<T>, b: Set<T>) => a.size === b.size && intersect(a, 
 export function judgeOffline(
   a: string,
   b: string,
-  opts: { similarity?: number } = {},
+  opts: { similarity?: number; maskedSimilarity?: number } = {},
 ): Judgement {
   const ta = normalise(a);
   const tb = normalise(b);
@@ -129,13 +136,20 @@ export function judgeOffline(
     return { relation: "neutral", confidence: 0.7, rationale: `Different scope: [${[...sa]}] vs [${[...sb]}].` };
   }
 
+  const ra = roleTokens(ta);
+  const rb = roleTokens(tb);
+  if (ra.size > 0 && rb.size > 0 && intersect(ra, rb).length === 0) {
+    return { relation: "neutral", confidence: 0.7, rationale: `Different audience: [${[...ra]}] vs [${[...rb]}].` };
+  }
+
   const wa = contentWords(ta);
   const wb = contentWords(tb);
   const shared = intersect(wa, wb).length;
   const overlap = shared / Math.max(1, Math.min(wa.size, wb.size));
   const jaccard = shared / Math.max(1, new Set([...wa, ...wb]).size);
-  const threshold = (opts.similarity ?? 0) >= 0.75 ? 0.25 : 0.5;
-  if (overlap < threshold) {
+  const threshold = (opts.similarity ?? 0) >= 0.75 ? 0.3 : 0.45;
+  const different = opts.maskedSimilarity !== undefined ? opts.maskedSimilarity < MASKED_MIN : jaccard < threshold;
+  if (different) {
     return { relation: "neutral", confidence: 0.6, rationale: "Claims are about different things." };
   }
 
@@ -148,8 +162,11 @@ export function judgeOffline(
     if (!nb.has(unit)) continue;
     const x = na.get(unit)!;
     const y = nb.get(unit)!;
+    const common = intersect(x, y).length;
     if (sameSet(x, y)) agree = true;
-    else if (intersect(x, y).length === 0) reasons.push(`different ${unit || "numeric"} values (${[...x]} vs ${[...y]})`);
+    else if (common < x.size && common < y.size) {
+      reasons.push(`different ${unit || "numeric"} values (${[...x]} vs ${[...y]})`);
+    }
   }
   const ma = months(ta);
   const mb = months(tb);
@@ -174,7 +191,8 @@ export function judgeOffline(
       rationale: `Same topic but ${reasons.join("; ")}.`,
     };
   }
-  if (agree || jaccard >= 0.6) {
+  const alike = (opts.maskedSimilarity ?? 0) >= MASKED_MIN && jaccard >= 0.4;
+  if (agree || jaccard >= 0.6 || alike) {
     return {
       relation: "supports",
       confidence: Math.min(0.95, Math.round((0.6 + 0.3 * Math.max(jaccard, overlap)) * 100) / 100),
@@ -183,3 +201,24 @@ export function judgeOffline(
   }
   return { relation: "neutral", confidence: 0.5, rationale: "Related but neither confirms nor conflicts." };
 }
+
+const MONTH_RE = new RegExp("\\b(?:" + MONTHS.join("|") + ")\\b", "gi");
+
+/**
+ * Replace every quantity (clock time, money, percentage, bare number, month) with "#".
+ * Two claims about the same attribute that differ only in the value become near-identical
+ * after masking, so their embedding similarity separates "same attribute, different value"
+ * from "different attribute".
+ */
+export function maskQuantities(t: string): string {
+  return t
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/gi, " # ")
+    .replace(/(?:\brs\.?|\binr|₹)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|percent\b|percentage\b)?/gi, " # ")
+    .replace(MONTH_RE, " # ")
+    .replace(/(?:#\s*){2,}/g, "# ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Below this masked-embedding similarity two claims are about different attributes. */
+export const MASKED_MIN = 0.8;

@@ -1,0 +1,34 @@
+{
+  "_comment": "expect=conflict: a returned conflict must have one claim matching needles[0] and the other needles[1] (case-insensitive substrings); needles[correct] is the better-supported side. expect=none: a conflict containing a claim that matches 'focus' is a false alarm.",
+  "questions": [
+    { "id": "q01", "q": "What is the minimum attendance required for the end-semester exam?", "expect": "conflict", "needles": ["75 percent", "85 percent"], "correct": 0 },
+    { "id": "q02", "q": "How much attendance shortage can be condoned?", "expect": "conflict", "needles": ["up to 10 percent", "up to 5 percent"], "correct": 0 },
+    { "id": "q03", "q": "Are mobile phones allowed in the examination hall?", "expect": "conflict", "needles": ["are not allowed inside the examination hall", "are allowed inside the examination hall"], "correct": 0 },
+    { "id": "q04", "q": "What is the library fine per day for an overdue book?", "expect": "conflict", "needles": ["Rs 2 per day", "Rs 5 per day"], "correct": 0 },
+    { "id": "q05", "q": "Until what time is the library open on weekdays?", "expect": "conflict", "needles": ["8 am to 8 pm", "8 am to 10 pm"], "correct": 0 },
+    { "id": "q06", "q": "At what time does the girls hostel gate close?", "expect": "conflict", "needles": ["girls hostel gate closes at 10 pm", "girls hostel gate closes at 9 pm"], "correct": 0 },
+    { "id": "q07", "q": "When are visitors allowed in the hostel on Sundays?", "expect": "conflict", "needles": ["from 4 pm to 6 pm", "from 10 am to 12 pm"], "correct": 0 },
+    { "id": "q08", "q": "What is the semester fee payment deadline?", "expect": "conflict", "needles": ["15 July", "30 July"], "correct": 0 },
+    { "id": "q09", "q": "How much is the revaluation fee per paper?", "expect": "conflict", "needles": ["Rs 600", "Rs 400"], "correct": 0 },
+    { "id": "q10", "q": "How much does an ID card replacement cost?", "expect": "conflict", "needles": ["Rs 200", "Rs 300"], "correct": 0 },
+    { "id": "q11", "q": "How much does the bus pass cost per semester?", "expect": "conflict", "needles": ["Rs 1,500", "Rs 1,800"], "correct": 0 },
+    { "id": "q12", "q": "How much weight does internal assessment carry in a theory course?", "expect": "conflict", "needles": ["Internal assessment carries 50", "Internal assessment carries 40"], "correct": 0 },
+    { "id": "q13", "q": "What share of the total marks does the end-semester examination carry?", "expect": "conflict", "needles": ["examination carries 50 percent", "examination carries 60 percent"], "correct": 0 },
+    { "id": "q14", "q": "How many experiments must final-year students complete per semester?", "expect": "conflict", "needles": ["Final-year students must complete 6", "Final-year students must complete 8"], "correct": 0 },
+    { "id": "q15", "q": "What is the minimum CGPA for the merit scholarship?", "expect": "conflict", "needles": ["is 8.5", "is 8.0"], "correct": 0 },
+    { "id": "q16", "q": "When do scholarship applications open?", "expect": "conflict", "needles": ["every June", "every August"], "correct": 0 },
+
+    { "id": "n01", "q": "Is Wi-Fi available in the hostels?", "expect": "none", "focus": "Wi-Fi" },
+    { "id": "n02", "q": "How much free data does each student get per day?", "expect": "none", "focus": "free data" },
+    { "id": "n03", "q": "When is the health centre open?", "expect": "none", "focus": "health centre" },
+    { "id": "n04", "q": "What is the late fee for paying after the deadline?", "expect": "none", "focus": "late fee" },
+    { "id": "n05", "q": "What percentage is needed in the end-semester exam to pass a course?", "expect": "none", "focus": "to pass a course" },
+    { "id": "n06", "q": "When are hall tickets issued?", "expect": "none", "focus": "Hall tickets" },
+    { "id": "n07", "q": "What time does the boys hostel gate close?", "expect": "none", "focus": "boys hostel gate" },
+    { "id": "n08", "q": "What CGPA do students need to sit for campus placements?", "expect": "none", "focus": "campus placements" },
+    { "id": "n09", "q": "How many books can faculty members borrow?", "expect": "none", "focus": "Faculty members" },
+    { "id": "n10", "q": "How many books can students borrow at a time?", "expect": "none", "focus": "borrow up to 4" },
+    { "id": "n11", "q": "How many experiments must first-year students complete?", "expect": "none", "focus": "First-year students must complete" },
+    { "id": "n12", "q": "How many students are in a final-year lab batch?", "expect": "none", "focus": "12 students" }
+  ]
+}

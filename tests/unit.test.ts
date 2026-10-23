@@ -170,11 +170,29 @@ describe("evidence grouping", () => {
     assert.equal(g.conflicts[0].lean, "a");
     assert.deepEqual(g.claims.map((c) => c.id), [3]);
   });
+  it("merges corroborating claims into one position and one conflict", () => {
+    // 1 and 3 say the same thing; 2 disagrees with both.
+    const retrieved = [ev(1, { score: 0.9 }), ev(2, { score: 0.6 }), ev(3, { score: 0.4 })];
+    const g = groupEvidence(
+      retrieved,
+      [
+        { relation_id: 10, claim_a: 1, claim_b: 2, confidence: 0.8, rationale: null },
+        { relation_id: 11, claim_a: 2, claim_b: 3, confidence: 0.95, rationale: "x" },
+      ],
+      [{ claim_a: 1, claim_b: 3 }],
+    );
+    assert.equal(g.conflicts.length, 1);
+    const c = g.conflicts[0];
+    assert.deepEqual([c.a.id, c.alsoA.map((x) => x.id), c.b.id], [1, [3], 2]);
+    assert.equal(c.relationId, 11, "strongest edge represents the conflict");
+    assert.equal(c.lean, "a");
+    assert.deepEqual(g.claims, []);
+  });
 });
 
 describe("offline answer", () => {
   const conflict = (leanTo: ConflictView["lean"]): ConflictView => ({
-    relationId: 1, confidence: 0.9, rationale: null, lean: leanTo,
+    relationId: 1, confidence: 0.9, rationale: null, lean: leanTo, alsoA: [], alsoB: [],
     a: ev(1, { source: "Circular", reliability: 0.9, date: "2025-01-01" }),
     b: ev(2, { source: "Wiki", reliability: 0.4, date: "2023-01-01" }),
   });

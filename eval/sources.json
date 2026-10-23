@@ -1,0 +1,7 @@
+[
+  { "name": "University Circular", "kind": "official", "trust": 0.9, "url": null },
+  { "name": "Examination Cell Notice", "kind": "official", "trust": 0.85, "url": null },
+  { "name": "Department Notice Board", "kind": "internal", "trust": 0.6, "url": null },
+  { "name": "Campus News Blog", "kind": "news", "trust": 0.5, "url": null },
+  { "name": "Student Wiki", "kind": "wiki", "trust": 0.35, "url": null }
+]

@@ -12,7 +12,9 @@
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
     "db:reset": "tsx --env-file=.env scripts/migrate.ts --reset",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
-    "test": "tsx scripts/run-tests.ts"
+    "test": "tsx scripts/run-tests.ts",
+    "demo:load": "tsx --env-file=.env scripts/load-demo.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",

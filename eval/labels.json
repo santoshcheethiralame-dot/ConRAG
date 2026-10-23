@@ -1,0 +1,40 @@
+{
+  "_comment": "Ground truth for claim pairs. 'doc' is the corpus file number. Pairs not listed are expected to have no relation. The loader fails if a text is not found verbatim in its document.",
+  "pairs": [
+    { "relation": "contradicts", "a": [1, "All students must maintain a minimum attendance of 75 percent in each course to be eligible for the end-semester examination."], "b": [2, "The minimum attendance required to appear for the end-semester examination is 85 percent."] },
+    { "relation": "contradicts", "a": [2, "The minimum attendance required to appear for the end-semester examination is 85 percent."], "b": [3, "The minimum attendance needed for the end-semester examination is 75 percent."] },
+    { "relation": "contradicts", "a": [1, "Attendance shortage of up to 10 percent may be condoned by the Dean with a valid medical certificate."], "b": [2, "Attendance shortage of up to 5 percent may be condoned with a valid medical certificate."] },
+    { "relation": "contradicts", "a": [3, "Mobile phones are allowed inside the examination hall if they are switched off."], "b": [4, "Mobile phones are not allowed inside the examination hall under any circumstances."] },
+    { "relation": "contradicts", "a": [5, "The library fine is Rs 2 per day for each overdue book."], "b": [6, "The library fine is Rs 5 per day for each overdue book."] },
+    { "relation": "contradicts", "a": [5, "The library is open from 8 am to 8 pm on weekdays."], "b": [6, "The library is open from 8 am to 10 pm on weekdays."] },
+    { "relation": "contradicts", "a": [7, "The girls hostel gate closes at 10 pm every night."], "b": [8, "The girls hostel gate closes at 9 pm every night."] },
+    { "relation": "contradicts", "a": [7, "Visitors are allowed in the hostel on Sundays from 4 pm to 6 pm."], "b": [8, "Visitors are allowed in the hostel on Sundays from 10 am to 12 pm."] },
+    { "relation": "contradicts", "a": [9, "The semester fee payment deadline is 15 July."], "b": [10, "The semester fee payment deadline is 30 July."] },
+    { "relation": "contradicts", "a": [9, "The revaluation fee is Rs 600 per paper."], "b": [11, "The revaluation fee is Rs 400 per paper."] },
+    { "relation": "contradicts", "a": [9, "The ID card replacement fee is Rs 200."], "b": [11, "The ID card replacement fee is Rs 300."] },
+    { "relation": "contradicts", "a": [9, "The bus pass costs Rs 1,500 per semester."], "b": [11, "The bus pass costs Rs 1,800 per semester."] },
+    { "relation": "contradicts", "a": [12, "Internal assessment carries 50 percent of the total marks in every theory course."], "b": [13, "Internal assessment carries 40 percent of the total marks in every theory course."] },
+    { "relation": "contradicts", "a": [12, "The end-semester examination carries 50 percent of the total marks."], "b": [13, "The end-semester examination carries 60 percent of the total marks."] },
+    { "relation": "contradicts", "a": [14, "Final-year students must complete 6 experiments per semester in each laboratory course."], "b": [15, "Final-year students must complete 8 experiments per semester in each laboratory course."] },
+    { "relation": "contradicts", "a": [16, "The minimum CGPA for the merit scholarship is 8.0."], "b": [17, "The minimum CGPA for the merit scholarship is 8.5."] },
+    { "relation": "contradicts", "a": [16, "Applications for scholarships open every August."], "b": [17, "Applications for scholarships open every June."] },
+
+    { "relation": "supports", "a": [1, "All students must maintain a minimum attendance of 75 percent in each course to be eligible for the end-semester examination."], "b": [3, "The minimum attendance needed for the end-semester examination is 75 percent."] },
+    { "relation": "supports", "a": [3, "Hall tickets are issued two days before the first paper."], "b": [4, "Hall tickets are issued two days before the first paper."] },
+    { "relation": "supports", "a": [3, "The ID card must be carried to every examination."], "b": [4, "Students must carry the college ID card to every examination."] },
+    { "relation": "supports", "a": [7, "The boys hostel gate closes at 11 pm every night."], "b": [8, "The boys hostel gate closes at 11 pm every night."] },
+    { "relation": "supports", "a": [7, "Cooking is not permitted inside the hostel rooms."], "b": [8, "Cooking is not allowed inside the hostel rooms."] },
+    { "relation": "supports", "a": [9, "A late fee of Rs 500 applies to payments made after the deadline."], "b": [10, "A late fee of Rs 500 applies to payments made after the deadline."] },
+    { "relation": "supports", "a": [12, "A student needs at least 40 percent in the end-semester examination to pass a course."], "b": [13, "A student needs at least 40 percent in the end-semester examination to pass a course."] },
+    { "relation": "supports", "a": [16, "The merit scholarship covers 50 percent of the tuition fee."], "b": [17, "The merit scholarship covers 50 percent of the tuition fee."] },
+
+    { "relation": "neutral", "note": "different year group", "a": [14, "First-year students must complete 10 experiments per semester in each laboratory course."], "b": [15, "Final-year students must complete 8 experiments per semester in each laboratory course."] },
+    { "relation": "neutral", "note": "girls vs boys", "a": [7, "The girls hostel gate closes at 10 pm every night."], "b": [8, "The boys hostel gate closes at 11 pm every night."] },
+    { "relation": "neutral", "note": "boys vs girls", "a": [7, "The boys hostel gate closes at 11 pm every night."], "b": [8, "The girls hostel gate closes at 9 pm every night."] },
+    { "relation": "neutral", "note": "scholarship vs placement CGPA", "a": [16, "The minimum CGPA for the merit scholarship is 8.0."], "b": [19, "Students need a minimum CGPA of 7.0 to sit for campus placements."] },
+    { "relation": "neutral", "note": "scholarship vs placement CGPA", "a": [17, "The minimum CGPA for the merit scholarship is 8.5."], "b": [19, "Students need a minimum CGPA of 7.0 to sit for campus placements."] },
+    { "relation": "neutral", "note": "students vs faculty", "a": [5, "Students may borrow up to 4 books at a time for a period of 14 days."], "b": [6, "Faculty members may borrow up to 10 books at a time for a period of 30 days."] },
+    { "relation": "neutral", "note": "library vs health centre hours", "a": [5, "The library is open from 8 am to 8 pm on weekdays."], "b": [18, "The health centre is open from 9 am to 5 pm on weekdays."] },
+    { "relation": "neutral", "hard": true, "note": "general rule vs narrower exception", "a": [14, "Lab attendance is mandatory for all students."], "b": [15, "Lab attendance is optional for students who have completed all the experiments."] }
+  ]
+}

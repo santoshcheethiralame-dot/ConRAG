@@ -1,4 +1,4 @@
-import { one, rows, vec, withTx } from "./db";
+import { rows, vec, withTx } from "./db";
 import { embed } from "./embed";
 import { env } from "./env";
 import { getLlm, type ConflictView, type EvidenceClaim } from "./llm";
@@ -81,20 +81,62 @@ async function retrievePlain(qv: string, k: number, minSim: number): Promise<Cla
   );
 }
 
-/** Pure grouping step, exported for tests: split retrieved claims into conflicts and uncontested claims. */
+export interface PairRow {
+  relation_id: number;
+  claim_a: number;
+  claim_b: number;
+  confidence: number;
+  rationale: string | null;
+}
+
+/**
+ * Pure grouping step, exported for tests. Claims joined by "supports" edges form one position
+ * (same assertion made by several sources). Positions joined by "contradicts" edges form one
+ * conflict, so three claims saying 75% against one saying 85% is a single two-sided conflict
+ * with the corroborating claims attached, not two separate pair conflicts.
+ */
 export function groupEvidence(
   retrieved: EvidenceClaim[],
-  pairs: { relation_id: number; claim_a: number; claim_b: number; confidence: number; rationale: string | null }[],
+  contradictions: PairRow[],
+  supports: { claim_a: number; claim_b: number }[] = [],
 ): { conflicts: ConflictView[]; claims: EvidenceClaim[] } {
   const byId = new Map(retrieved.map((c) => [c.id, c]));
-  const conflicts: ConflictView[] = [];
+  const parent = new Map(retrieved.map((c) => [c.id, c.id]));
+  const find = (x: number): number => (parent.get(x) === x ? x : (parent.set(x, find(parent.get(x)!)), parent.get(x)!));
+  for (const s of supports) {
+    if (byId.has(s.claim_a) && byId.has(s.claim_b)) parent.set(find(s.claim_a), find(s.claim_b));
+  }
+  const members = (root: number) => retrieved.filter((c) => find(c.id) === root).sort((x, y) => y.score - x.score);
+
+  const groups = new Map<string, { roots: [number, number]; edges: PairRow[] }>();
+  for (const p of contradictions) {
+    if (!byId.has(p.claim_a) || !byId.has(p.claim_b)) continue;
+    const ra = find(p.claim_a);
+    const rb = find(p.claim_b);
+    if (ra === rb) continue;
+    const roots: [number, number] = ra < rb ? [ra, rb] : [rb, ra];
+    const k = roots.join("-");
+    if (!groups.has(k)) groups.set(k, { roots, edges: [] });
+    groups.get(k)!.edges.push(p);
+  }
+
   const contested = new Set<number>();
-  for (const p of pairs) {
-    const a = byId.get(p.claim_a);
-    const b = byId.get(p.claim_b);
-    if (!a || !b) continue;
-    contested.add(a.id).add(b.id);
-    conflicts.push({ relationId: p.relation_id, confidence: p.confidence, rationale: p.rationale, a, b, lean: lean(a.score, b.score) });
+  const conflicts: ConflictView[] = [];
+  for (const { roots, edges } of groups.values()) {
+    let [ma, mb] = [members(roots[0]), members(roots[1])];
+    if (ma[0].id > mb[0].id) [ma, mb] = [mb, ma];
+    ma.concat(mb).forEach((c) => contested.add(c.id));
+    const best = edges.reduce((x, y) => (y.confidence > x.confidence ? y : x));
+    conflicts.push({
+      relationId: best.relation_id,
+      confidence: best.confidence,
+      rationale: best.rationale,
+      a: ma[0],
+      b: mb[0],
+      alsoA: ma.slice(1),
+      alsoB: mb.slice(1),
+      lean: lean(ma[0].score, mb[0].score),
+    });
   }
   conflicts.sort((x, y) => Math.max(y.a.similarity, y.b.similarity) - Math.max(x.a.similarity, x.b.similarity));
   return { conflicts, claims: retrieved.filter((c) => !contested.has(c.id)) };
@@ -108,13 +150,20 @@ export async function ask(question: string, userId: number | null, opts: { compa
   const qv = vec(qvRaw);
 
   const retrieved = (await retrieveClaims(qv, cfg.RETRIEVAL_K, cfg.MIN_SIMILARITY)).map(toEvidence);
+  const ids = retrieved.map((c) => c.id);
   const pairs = retrieved.length
-    ? await rows<{ relation_id: number; claim_a: number; claim_b: number; confidence: number; rationale: string | null }>(
+    ? await rows<PairRow>(
         "SELECT relation_id, claim_a, claim_b, confidence, rationale FROM retrieve_conflicts($1::vector, $2)",
         [qv, cfg.RETRIEVAL_K],
       )
     : [];
-  const { conflicts, claims } = groupEvidence(retrieved, pairs);
+  const supports = retrieved.length
+    ? await rows<{ claim_a: number; claim_b: number }>(
+        "SELECT claim_a, claim_b FROM claim_relations WHERE relation = 'supports' AND claim_a = ANY($1::bigint[]) AND claim_b = ANY($1::bigint[])",
+        [ids],
+      )
+    : [];
+  const { conflicts, claims } = groupEvidence(retrieved, pairs, supports);
 
   const answer = await llm.answer({ question, claims, conflicts });
 
@@ -139,16 +188,12 @@ export async function ask(question: string, userId: number | null, opts: { compa
       );
     for (const x of claims) await put(x, "supporting");
     for (const cf of conflicts) {
-      const [win, lose] = cf.lean === "b" ? [cf.b, cf.a] : [cf.a, cf.b];
-      await put(win, "supporting");
-      await put(lose, "contradicting");
+      const [win, lose, winAlso, loseAlso] = cf.lean === "b" ? [cf.b, cf.a, cf.alsoB, cf.alsoA] : [cf.a, cf.b, cf.alsoA, cf.alsoB];
+      for (const w of [win, ...winAlso]) await put(w, "supporting");
+      for (const l of [lose, ...loseAlso]) await put(l, "contradicting");
     }
     return id;
   });
 
   return { queryId, answer, conflicts, claims, plain, llm: llm.name, ms };
-}
-
-export async function queryExists(id: number) {
-  return !!(await one("SELECT 1 FROM queries WHERE id = $1", [id]));
 }

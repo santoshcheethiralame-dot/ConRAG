@@ -32,6 +32,9 @@ export interface ConflictView {
   rationale: string | null;
   a: EvidenceClaim;
   b: EvidenceClaim;
+  /** Other retrieved claims that back the same assertion as a / b. */
+  alsoA: EvidenceClaim[];
+  alsoB: EvidenceClaim[];
   lean: Lean;
 }
 
@@ -42,10 +45,17 @@ export interface AnswerInput {
   conflicts: ConflictView[];
 }
 
+export interface JudgeHint {
+  similarity?: number;
+  maskedSimilarity?: number;
+}
+
 export interface Llm {
   readonly name: string;
   extractClaims(chunk: string): Promise<string[]>;
-  judge(a: ClaimRef, b: ClaimRef, hint?: { similarity?: number }): Promise<Judgement>;
+  /** True when judge() uses maskedSimilarity (embedding similarity with quantities masked out). */
+  readonly wantsMaskedSimilarity: boolean;
+  judge(a: ClaimRef, b: ClaimRef, hint?: JudgeHint): Promise<Judgement>;
   answer(input: AnswerInput): Promise<string>;
   /** Plain-RAG answer: top-k evidence, no conflict knowledge. Used for the comparison view and evaluation. */
   answerPlain(question: string, claims: EvidenceClaim[]): Promise<string>;
@@ -115,9 +125,10 @@ export function offlineAnswer(input: AnswerInput): string {
         ? "The sources disagree on this."
         : `The sources disagree on ${conflicts.length} points.`,
     );
+    const also = (xs: EvidenceClaim[]) => (xs.length ? ` (also: ${xs.map((x) => x.source).join(", ")})` : "");
     for (const c of conflicts) {
-      lines.push(`• ${who(c.a)} says: "${c.a.text}"`);
-      lines.push(`  ${who(c.b)} says: "${c.b.text}"`);
+      lines.push(`• ${who(c.a)} says: "${c.a.text}"${also(c.alsoA)}`);
+      lines.push(`  ${who(c.b)} says: "${c.b.text}"${also(c.alsoB)}`);
       if (c.lean === "undecided") {
         lines.push("  The evidence does not clearly favour either side. An admin should resolve this conflict.");
       } else {
@@ -140,10 +151,11 @@ export function offlinePlainAnswer(_question: string, claims: EvidenceClaim[]): 
 
 class OfflineLlm implements Llm {
   readonly name = "offline-rules";
+  readonly wantsMaskedSimilarity = true;
   async extractClaims(chunk: string) {
     return offlineClaims(chunk);
   }
-  async judge(a: ClaimRef, b: ClaimRef, hint?: { similarity?: number }) {
+  async judge(a: ClaimRef, b: ClaimRef, hint?: JudgeHint) {
     return judgeOffline(a.text, b.text, hint);
   }
   async answer(input: AnswerInput) {
@@ -192,6 +204,7 @@ const ev = (c: EvidenceClaim) =>
 
 class AnthropicLlm implements Llm {
   readonly name: string;
+  readonly wantsMaskedSimilarity = false;
   private client: Anthropic;
   constructor(
     apiKey: string,

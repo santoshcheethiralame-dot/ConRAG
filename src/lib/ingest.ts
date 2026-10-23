@@ -5,6 +5,7 @@ import { embed } from "./embed";
 import { env } from "./env";
 import { HttpError } from "./http";
 import { findInjection } from "./injection";
+import { maskQuantities } from "./judge-offline";
 import { getLlm, type Judgement } from "./llm";
 
 export interface IngestInput {
@@ -110,13 +111,22 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
     .sort((x, y) => y.cand.similarity - x.cand.similarity)
     .slice(0, MAX_JUDGEMENTS);
 
-  const verdicts = await mapLimit(pairs, CONCURRENCY, ({ ci, cand }) =>
-    llm.judge(
+  const masked = new Map<string, number[]>();
+  if (llm.wantsMaskedSimilarity && pairs.length) {
+    const texts = [...new Set(pairs.flatMap(({ ci, cand }) => [maskQuantities(claims[ci].text), maskQuantities(cand.text)]))];
+    (await embed(texts)).forEach((v, i) => masked.set(texts[i], v));
+  }
+  const dot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i], 0);
+
+  const verdicts = await mapLimit(pairs, CONCURRENCY, ({ ci, cand }) => {
+    const ma = masked.get(maskQuantities(claims[ci].text));
+    const mb = masked.get(maskQuantities(cand.text));
+    return llm.judge(
       { text: claims[ci].text, source: src.name, date: input.publishedAt ?? null },
       { text: cand.text, source: cand.source_name, date: cand.published_at },
-      { similarity: cand.similarity },
-    ),
-  );
+      { similarity: cand.similarity, maskedSimilarity: ma && mb ? dot(ma, mb) : undefined },
+    );
+  });
 
   const judgedBy = llm.name;
   return withTx(async (c) => {
