@@ -170,6 +170,12 @@ describe("evidence grouping", () => {
     assert.equal(g.conflicts[0].lean, "a");
     assert.deepEqual(g.claims.map((c) => c.id), [3]);
   });
+  it("drops conflicts that are far from the question", () => {
+    const retrieved = [ev(1, { similarity: 0.4 }), ev(2, { similarity: 0.45 }), ev(3, { similarity: 0.9 })];
+    const g = groupEvidence(retrieved, [{ relation_id: 1, claim_a: 1, claim_b: 2, confidence: 0.9, rationale: null }], [], 0.5);
+    assert.equal(g.conflicts.length, 0);
+    assert.deepEqual(g.claims.map((c) => c.id), [3], "the irrelevant contested claims are not shown as plain evidence either");
+  });
   it("merges corroborating claims into one position and one conflict", () => {
     // 1 and 3 say the same thing; 2 disagrees with both.
     const retrieved = [ev(1, { score: 0.9 }), ev(2, { score: 0.6 }), ev(3, { score: 0.4 })];

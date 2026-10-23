@@ -111,7 +111,8 @@ async function main() {
         } else {
           const winner = hit.lean === "a" ? hit.a.text : hit.b.text;
           const ok = m(winner, q.needles![q.correct!]);
-          ok ? leanRight++ : leanWrong++;
+          if (ok) leanRight++;
+          else leanWrong++;
           leanTxt = ok ? "correct" : "WRONG";
         }
       }
@@ -119,7 +120,8 @@ async function main() {
       const has0 = m(pa, n0), has1 = m(pa, n1);
       const right = m(pa, q.needles![q.correct!]) && !m(pa, q.needles![1 - q.correct!]);
       if (has0 && has1) plainBoth++;
-      right ? plainRight++ : plainWrong++;
+      if (right) plainRight++;
+      else plainWrong++;
       qrows.push(`| ${q.id} | ${q.q} | ${hit ? "yes" : "NO"} | ${leanTxt} | ${right ? "correct" : has0 || has1 ? "WRONG" : "no match"} |`);
     } else {
       nQ++;

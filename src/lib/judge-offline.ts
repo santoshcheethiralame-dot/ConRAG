@@ -50,6 +50,10 @@ const UNIT_ALIASES: [RegExp, string][] = [
   [/^students?$/, "student"], [/^books?$/, "book"],
 ];
 
+const UNIT_LABEL: Record<string, string> = { inr: "amount (Rs)", time: "clock time", "%": "percentage" };
+const hhmm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+const show = (unit: string, vals: Set<number>) => [...vals].map((v) => (unit === "time" ? hhmm(v) : v)).join(", ");
+
 function normalise(t: string): string {
   return t
     .toLowerCase()
@@ -165,7 +169,7 @@ export function judgeOffline(
     const common = intersect(x, y).length;
     if (sameSet(x, y)) agree = true;
     else if (common < x.size && common < y.size) {
-      reasons.push(`different ${unit || "numeric"} values (${[...x]} vs ${[...y]})`);
+      reasons.push(`different ${UNIT_LABEL[unit] ?? (unit || "numeric")} values (${show(unit, x)} vs ${show(unit, y)})`);
     }
   }
   const ma = months(ta);

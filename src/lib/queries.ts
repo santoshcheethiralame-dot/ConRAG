@@ -78,7 +78,7 @@ export async function listConflicts(f: ConflictFilter): Promise<ConflictRow[]> {
        JOIN claims ca ON ca.id = r.claim_a JOIN documents da ON da.id = ca.document_id JOIN sources sa ON sa.id = da.source_id
        JOIN claims cb ON cb.id = r.claim_b JOIN documents db ON db.id = cb.document_id JOIN sources sb ON sb.id = db.source_id
      )
-     SELECT x.*, cr.winner_claim_id, cr.resolved_at, u.email AS resolver, cr.note
+     SELECT x.*, cr.winner_claim_id, cr.resolved_at::text AS resolved_at, u.email AS resolver, cr.note
      FROM conflict_resolutions cr
      JOIN x ON x.relation_id = cr.relation_id
      LEFT JOIN users u ON u.id = cr.resolved_by
@@ -174,7 +174,9 @@ export async function getDocument(id: number): Promise<{ doc: DocDetail; claims:
     doc,
     claims: claims.map((c) => ({
       ...c,
-      relations: rels.filter((r) => r.me === c.id).map(({ me: _me, ...r }) => r),
+      relations: rels
+        .filter((r) => r.me === c.id)
+        .map((r) => ({ relation_id: r.relation_id, relation: r.relation, confidence: r.confidence, other_id: r.other_id, other_text: r.other_text, other_source: r.other_source })),
     })),
   };
 }

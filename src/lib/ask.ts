@@ -99,6 +99,7 @@ export function groupEvidence(
   retrieved: EvidenceClaim[],
   contradictions: PairRow[],
   supports: { claim_a: number; claim_b: number }[] = [],
+  minConflictSimilarity = 0,
 ): { conflicts: ConflictView[]; claims: EvidenceClaim[] } {
   const byId = new Map(retrieved.map((c) => [c.id, c]));
   const parent = new Map(retrieved.map((c) => [c.id, c.id]));
@@ -126,6 +127,7 @@ export function groupEvidence(
     let [ma, mb] = [members(roots[0]), members(roots[1])];
     if (ma[0].id > mb[0].id) [ma, mb] = [mb, ma];
     ma.concat(mb).forEach((c) => contested.add(c.id));
+    if (Math.max(ma[0].similarity, mb[0].similarity) < minConflictSimilarity) continue; // too far from the question to matter
     const best = edges.reduce((x, y) => (y.confidence > x.confidence ? y : x));
     conflicts.push({
       relationId: best.relation_id,
@@ -163,7 +165,7 @@ export async function ask(question: string, userId: number | null, opts: { compa
         [ids],
       )
     : [];
-  const { conflicts, claims } = groupEvidence(retrieved, pairs, supports);
+  const { conflicts, claims } = groupEvidence(retrieved, pairs, supports, cfg.CONFLICT_MIN_SIMILARITY);
 
   const answer = await llm.answer({ question, claims, conflicts });
 

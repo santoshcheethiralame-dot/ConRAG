@@ -15,6 +15,8 @@ const schema = z.object({
   EMBEDDING_PROVIDER: z.preprocess(blank, z.enum(["local", "hash"]).default("local")),
   RETRIEVAL_K: z.preprocess(blank, z.coerce.number().int().min(2).max(50).default(8)),
   MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.35)),
+  // A conflict is reported only if at least one side is this close to the question.
+  CONFLICT_MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.5)),
   CANDIDATE_MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.6)),
   CANDIDATES_PER_CLAIM: z.preprocess(blank, z.coerce.number().int().min(1).max(20).default(5)),
 });

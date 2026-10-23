@@ -2,7 +2,7 @@
 // Run after `npm run db:seed`. Already-ingested documents are skipped.
 import { loadCorpus } from "./lib/corpus";
 
-async function main() {
+export async function loadDemo() {
   const { one, pool } = await import("@/lib/db");
   const { ingestDocument } = await import("@/lib/ingest");
   const admin = await one<{ id: number }>("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1");
@@ -22,7 +22,9 @@ async function main() {
   console.log(`done, ${found} contradictions found`);
   await pool().end();
 }
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (/load-demo\.ts$/.test(process.argv[1] ?? "")) {
+  loadDemo().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

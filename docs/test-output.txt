@@ -1,0 +1,108 @@
+▶ table constraints
+  ✔ rejects malformed users and sources (89.3197ms)
+  ✔ enforces case-insensitive unique emails and unique source names (43.6342ms)
+  ✔ validates documents, chunks and evidence fields (41.3427ms)
+  ✔ a claim cannot point at a document its chunk does not belong to (39.7269ms)
+▶ table constraints (216.5337ms)
+▶ claim relations
+  ✔ stores each pair once, ordered, across documents only (50.5544ms)
+  ✔ writes an audit row for every insert, update and delete (39.7898ms)
+▶ claim relations (91.009ms)
+▶ vector search functions
+  ✔ find_similar_claims orders by cosine similarity, honours k and exclude_doc, skips superseded (55.0267ms)
+  ✔ retrieve_conflicts returns only contradictions inside the retrieved set (48.4228ms)
+  ✔ uses the HNSW and GIN indexes when the planner is steered to them (25.0923ms)
+▶ vector search functions (129.6153ms)
+▶ conflict resolution
+  ✔ rejects bad winners and non-contradictions (39.8459ms)
+  ✔ supersedes the loser, closes the conflict, hides the loser, lowers its source's reliability (107.0683ms)
+  ✔ allows one resolution per relation (28.2036ms)
+  ✔ undoing a resolution reactivates the loser unless it lost another conflict (51.0281ms)
+  ✔ cannot resolve a conflict that involves an already superseded claim (56.388ms)
+  ✔ keeps status and superseded_at consistent (26.4359ms)
+▶ conflict resolution (310.3261ms)
+▶ users
+  ✔ never leaves the system without an admin (57.6701ms)
+▶ users (58.0321ms)
+▶ search and graph functions
+  ✔ search_documents ranks by relevance, supports websearch syntax, highlights (22.4454ms)
+  ✔ conflict_cluster follows contradictions transitively and survives cycles (60.9021ms)
+▶ search and graph functions (83.6276ms)
+▶ cascades and views
+  ✔ deleting a document removes its chunks, claims, relations and resolutions (22.7839ms)
+  ✔ v_source_stats counts documents and claims per source (17.4006ms)
+▶ cascades and views (40.5688ms)
+▶ ingest
+  ✔ stores claims and finds the contradiction against an earlier document (106.4641ms)
+  ✔ rejects duplicates, unknown sources and instruction-like text (8.6116ms)
+  ✔ is atomic: a failure after the document insert leaves nothing behind (14.5349ms)
+▶ ingest (181.0689ms)
+▶ ask
+  ✔ reports the conflict, leans to the more reliable and recent source, and logs the evidence (38.9683ms)
+  ✔ answers an unrelated question without inventing a conflict (18.6425ms)
+  ✔ stops retrieving a claim once an admin resolves against it, and restores it on undo (74.3467ms)
+▶ ask (132.8865ms)
+▶ db/queries.sql
+  ✔ has the documented queries (1.3165ms)
+  ✔ runs every query on an empty database (116.1888ms)
+▶ db/queries.sql (120.0661ms)
+▶ chunking
+  ✔ splits sentences on terminal punctuation, not on decimals or abbreviations of numbers (2.2342ms)
+  ✔ packs paragraphs up to the limit and never splits a sentence (0.9148ms)
+  ✔ returns nothing for blank input and one chunk for short input (0.308ms)
+▶ chunking (4.8163ms)
+▶ hash embedding
+  ✔ is 384-d, unit length, deterministic (1.0084ms)
+  ✔ puts same-topic text closer than unrelated text (0.5539ms)
+▶ hash embedding (1.7413ms)
+▶ offline judge
+  ✔ flags different numbers for the same quantity (7.8213ms)
+  ✔ flags different clock times and different dates (2.6311ms)
+  ✔ flags negation and antonyms (1.0803ms)
+  ✔ supports identical specifics (0.3981ms)
+  ✔ does not flag different scopes (0.4058ms)
+  ✔ treats same-scope claims as comparable (0.49ms)
+  ✔ ignores unrelated claims (0.3406ms)
+  ✔ does not treat a bare year as a quantity (0.1648ms)
+  ✔ normalises units and clock times (0.3732ms)
+  ✔ extracts scope tokens (0.1898ms)
+▶ offline judge (14.5158ms)
+▶ offline claim extraction
+  ✔ keeps statements, drops questions, bullets and fragments (0.5179ms)
+▶ offline claim extraction (0.6566ms)
+▶ model reply parsing
+  ✔ extracts JSON from prose and code fences (0.3917ms)
+  ✔ validates judgements and clamps confidence formatting (3.8669ms)
+  ✔ parses claim lists, dropping fragments and duplicates (0.99ms)
+▶ model reply parsing (5.4609ms)
+▶ scoring
+  ✔ decays with age, floors at 0.8, penalises unknown dates (0.2988ms)
+  ✔ caps corroboration at three (0.3066ms)
+  ✔ ranks reliable, recent, corroborated claims higher (0.2498ms)
+  ✔ calls near-ties undecided (0.1442ms)
+▶ scoring (1.1829ms)
+▶ evidence grouping
+  ✔ separates conflicts from uncontested claims and ignores pairs outside the retrieved set (0.7702ms)
+  ✔ drops conflicts that are far from the question (0.244ms)
+  ✔ merges corroborating claims into one position and one conflict (0.3187ms)
+▶ evidence grouping (1.5006ms)
+▶ offline answer
+  ✔ states the disagreement, both sides and why one leads (0.5118ms)
+  ✔ asks for admin resolution when undecided (0.252ms)
+  ✔ handles no evidence and uncontested evidence (0.4357ms)
+▶ offline answer (1.5416ms)
+▶ misc helpers
+  ✔ flags prompt-injection phrasing (3.1676ms)
+  ✔ rate limiter blocks after the limit and recovers after the window (0.7184ms)
+  ✔ hashes documents ignoring whitespace and case (0.472ms)
+  ✔ mapLimit preserves order and respects the concurrency limit (91.2448ms)
+  ✔ rejects missing and forged session tokens (5.5727ms)
+▶ misc helpers (101.8101ms)
+ℹ tests 62
+ℹ suites 19
+ℹ pass 62
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7861.3961

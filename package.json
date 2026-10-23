@@ -14,7 +14,8 @@
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
     "test": "tsx scripts/run-tests.ts",
     "demo:load": "tsx --env-file=.env scripts/load-demo.ts",
-    "eval": "tsx scripts/eval.ts"
+    "eval": "tsx scripts/eval.ts",
+    "test:e2e": "next build && tsx scripts/run-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",
@@ -39,6 +40,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "playwright-core": "^1.64.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

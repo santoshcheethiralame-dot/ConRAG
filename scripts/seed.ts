@@ -9,7 +9,7 @@ const USERS = [
   ["viewer@conrag.test", "viewer"],
 ] as const;
 
-async function main() {
+export async function seed() {
   const { DATABASE_URL, SEED_PASSWORD } = process.env;
   if (!DATABASE_URL || !SEED_PASSWORD) throw new Error("DATABASE_URL and SEED_PASSWORD must be set");
   if (SEED_PASSWORD.length < 8) throw new Error("SEED_PASSWORD must be at least 8 characters");
@@ -31,7 +31,9 @@ async function main() {
   await client.end();
   console.log("seeded users and sources");
 }
-main().catch((e) => {
-  console.error(e.message ?? e);
-  process.exit(1);
-});
+if (/seed\.ts$/.test(process.argv[1] ?? "")) {
+  seed().catch((e) => {
+    console.error(e.message ?? e);
+    process.exit(1);
+  });
+}
