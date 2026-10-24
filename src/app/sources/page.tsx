@@ -13,7 +13,7 @@ export default async function SourcesPage() {
     <>
       <PageHeader
         title="Sources"
-        subtitle="Trust is set by an admin. Reliability is trust discounted by how often the source's claims lost a resolved conflict (a stored function over the resolutions table)."
+        subtitle="Trust is set by an admin. Contradicted is the share of a source's claims that conflict with another source. Reliability is trust discounted by how often the source's claims lost a resolved conflict (a stored function over the resolutions table)."
       />
       {isAdmin && (
         <Card className="mb-6">
@@ -21,7 +21,7 @@ export default async function SourcesPage() {
           <NewSourceForm />
         </Card>
       )}
-      <Table head={["Source", "Kind", "Trust", "Reliability", "Documents", "Claims", ...(isAdmin ? ["Edit"] : [])]}>
+      <Table head={["Source", "Kind", "Trust", "Reliability", "Documents", "Claims", "Contradicted", ...(isAdmin ? ["Edit"] : [])]}>
         {sources.map((r) => (
           <tr key={r.source_id}>
             <td className="px-3 py-2 font-medium">{r.name}</td>
@@ -36,6 +36,10 @@ export default async function SourcesPage() {
             </td>
             <td className="px-3 py-2 tabular-nums">{r.documents}</td>
             <td className="px-3 py-2 tabular-nums">{r.claims}</td>
+            <td className="px-3 py-2 tabular-nums">
+              {r.contradicted}
+              {r.claims > 0 && <span className="ml-1 text-xs text-slate-500">({Math.round((100 * r.contradicted) / r.claims)}%)</span>}
+            </td>
             {isAdmin && (
               <td className="px-3 py-2">
                 <SourceTrustEditor source={r} />

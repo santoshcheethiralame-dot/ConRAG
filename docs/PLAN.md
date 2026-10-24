@@ -24,7 +24,7 @@ The interesting part is not calling a language model; it is **storing knowledge 
 
 ## Scope
 
-**In:** text and markdown documents; one embedding model; a pluggable judge (rule-based fallback, Claude optional); three roles; Next.js interface for asking, reviewing, ingesting, searching and administration; evaluation harness; automated tests.
+**In:** text and markdown documents; one embedding model; a pluggable judge (rule-based default, optional free-tier chat model); three roles; Next.js interface for asking, reviewing, ingesting, searching and administration; evaluation harness; automated tests.
 
 **Out (cut list):** PDF/OCR parsing; multi-language; streaming answers; a fine-tuned NLI model; multi-tenant organisations; email verification and password reset; distributed rate limiting.
 
@@ -38,8 +38,8 @@ The interesting part is not calling a language model; it is **storing knowledge 
 | F4 | Browse and filter conflicts (status, source, confidence, text) | all |
 | F5 | Search documents with full-text queries; view a document with its claims and their relations | all |
 | F6 | Ingest a document and see the claims and conflicts it created | analyst, admin |
-| F7 | Resolve a conflict by keeping one claim, dismiss a false alarm, undo a resolution | admin |
-| F8 | Manage sources (trust, kind) and see computed reliability | admin (edit), all (view) |
+| F7 | Resolve a conflict by keeping one claim (with a suggested side), dismiss a false alarm, undo a resolution | admin |
+| F8 | Manage sources (trust, kind) and see computed reliability and contradiction rate | admin (edit), all (view) |
 | F9 | Manage users and roles; never lose the last admin | admin |
 | F10 | View question history with the evidence used; view the audit log | own history: all; all history and audit: admin |
 | F11 | Every change to relations, resolutions and sources is audited by the database | system |

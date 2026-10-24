@@ -2,7 +2,7 @@
 //   1. pair-level conflict detection (precision / recall / F1) against eval/labels.json
 //   2. question-level behaviour of ConRAG vs plain RAG against eval/questions.json
 // Writes docs/EVALUATION.md and eval/results.json.
-//   npm run eval                      local MiniLM embeddings + offline judge (or Claude if ANTHROPIC_API_KEY is set)
+//   npm run eval                      local MiniLM embeddings + offline judge (or a free-tier chat model if LLM_PROVIDER and LLM_API_KEY are set)
 //   EMBEDDING_PROVIDER=hash npm run eval
 import { writeFileSync } from "node:fs";
 import { Client } from "pg";

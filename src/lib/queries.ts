@@ -190,11 +190,16 @@ export interface SourceRow {
   claims: number;
   reliability: number;
   url: string | null;
+  contradicted: number;
 }
 
 export function listSources() {
   return rows<SourceRow>(
-    `SELECT v.source_id, v.name, v.kind, v.trust_score, v.documents, v.claims, v.reliability, s.url
+    `SELECT v.source_id, v.name, v.kind, v.trust_score, v.documents, v.claims, v.reliability, s.url,
+            (SELECT count(DISTINCT c.id)::int
+               FROM claims c JOIN documents d ON d.id = c.document_id
+               JOIN claim_relations r ON c.id IN (r.claim_a, r.claim_b) AND r.relation = 'contradicts'
+              WHERE d.source_id = s.id) AS contradicted
      FROM v_source_stats v JOIN sources s ON s.id = v.source_id
      ORDER BY v.trust_score DESC, v.name`,
   );

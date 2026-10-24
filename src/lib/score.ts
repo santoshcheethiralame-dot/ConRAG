@@ -31,3 +31,28 @@ export function lean(scoreA: number, scoreB: number): Lean {
   if (hi === 0 || Math.abs(scoreA - scoreB) / hi < 0.1) return "undecided";
   return scoreA > scoreB ? "a" : "b";
 }
+
+export interface Suggestion {
+  side: Lean;
+  reasons: string[];
+}
+
+/**
+ * Which side of an open conflict an admin should probably keep, from source reliability and recency alone
+ * (no question is involved, so similarity is not a factor).
+ */
+export function suggestResolution(
+  a: { reliability: number; date: string | null },
+  b: { reliability: number; date: string | null },
+  now = Date.now(),
+): Suggestion {
+  const sa = a.reliability * recencyFactor(a.date, now);
+  const sb = b.reliability * recencyFactor(b.date, now);
+  const side = lean(sa, sb);
+  if (side === "undecided") return { side, reasons: [] };
+  const [w, l] = side === "a" ? [a, b] : [b, a];
+  const reasons: string[] = [];
+  if (w.reliability > l.reliability) reasons.push("more reliable source");
+  if (w.date && l.date && w.date > l.date) reasons.push("newer");
+  return { side, reasons };
+}

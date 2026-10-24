@@ -5,13 +5,14 @@ Four layers, all runnable offline with no API key.
 | Layer | Command | Tests | What it proves |
 |---|---|---|---|
 | Database | `npm test` | 20 in `tests/db.test.ts` | constraints, triggers, functions, views, indexes, cascades, behave as designed |
-| Unit | `npm test` | 34 in `tests/unit.test.ts` | chunking, offline judge, scoring, grouping, parsing, rate limiter, injection filter |
+| Unit | `npm test` | 35 in `tests/unit.test.ts` | chunking, offline judge, scoring, grouping, parsing, rate limiter, injection filter |
+| Model provider | `npm test` | 9 in `tests/llm.test.ts` | the free-tier chat provider against a fake OpenAI-compatible endpoint: request shape, key, fenced untrusted text, JSON parsing, retries on 429/5xx, graceful degradation |
 | Pipeline + query pack | `npm test` | 8 in `tests/pipeline.test.ts` and `tests/queries.test.ts` | ingest → ask → resolve → undo through the real code; all 15 documented queries run |
-| End to end | `npm run test:e2e` | 17 in `tests/e2e/app.e2e.ts` | real browser against the production build: auth, roles, ask, resolve, ingest, search, admin |
+| End to end | `npm run test:e2e` | 18 in `tests/e2e/app.e2e.ts` | real browser against the production build: auth, roles, ask, resolve, ingest, search, admin |
 
 `npm test` starts an in-memory PostgreSQL + pgvector (PGlite), applies the migrations, runs the suites one at a time and tears everything down. `npm run test:e2e` additionally builds the app, loads the demo corpus with the real MiniLM embeddings, starts `next start`, and drives Edge (or Chrome) with Playwright. Raw output: [test-output.txt](test-output.txt), [e2e-output.txt](e2e-output.txt). Screenshots from the e2e run are in [screenshots/](screenshots).
 
-**Result at the time of writing: 62 of 62 and 17 of 17 passing; `tsc` and ESLint clean; `next build` succeeds.**
+**Result at the time of writing: 72 of 72 and 18 of 18 passing; `tsc` and ESLint clean; `next build` succeeds.**
 
 ## Database tests (`tests/db.test.ts`)
 
@@ -64,6 +65,6 @@ Chunker (decimals, abbreviations such as `Rs.`, size limit, no split sentences);
 
 ## Not covered
 
-- The Anthropic-backed judge and answerer: the code is exercised only through reply-parsing tests, because the suite must run without a key. Run `ANTHROPIC_API_KEY=… npm run eval` to measure it.
+- A real free-tier model: `tests/llm.test.ts` drives the chat provider against a fake OpenAI-compatible endpoint (request shape, fencing, retries on 429/5xx, degradation), but no live call is made in the suite. Run `LLM_PROVIDER=groq LLM_API_KEY=… npm run eval` to measure a real model.
 - Load and concurrency beyond a handful of simultaneous requests.
 - Accessibility audit beyond semantic HTML, labels and keyboard-reachable controls.

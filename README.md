@@ -2,7 +2,7 @@
 
 **A contradiction-aware retrieval-augmented generation system.** When the documents in a knowledge base disagree, a normal RAG system retrieves one of them and answers confidently. ConRAG finds the conflict when a document is ingested, stores it as data, and at question time answers with both sides, the sources behind each, and which side the evidence favours. Admins can resolve conflicts, and resolved-away claims stop being retrieved.
 
-DBMS Experiential Learning, Level 3 project (PES University). Stack: **Next.js 16** (App Router, Route Handlers) · **PostgreSQL 17 + pgvector** · local embeddings (MiniLM, 384-d) · optional Anthropic API for claim extraction, judging and answers.
+DBMS Experiential Learning, Level 3 project (PES University). Stack: **Next.js 16** (App Router, Route Handlers) · **PostgreSQL 17 + pgvector** · local embeddings (MiniLM, 384-d) · optional free-tier language model (Groq, Google Gemini or OpenRouter) for claim extraction, judging and answers. No paid API is needed.
 
 ![Ask page](docs/screenshots/02-ask-conflict.png)
 
@@ -41,7 +41,7 @@ Sign in as `admin@conrag.test`, `analyst@conrag.test` or `viewer@conrag.test` wi
 
 **Real PostgreSQL instead of the in-process one:** `docker compose up -d`, then use `DATABASE_URL=postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/conrag`. The schema is plain PostgreSQL + pgvector either way.
 
-**Use Claude for extraction, judging and answers:** set `ANTHROPIC_API_KEY` in `.env`. Without it the app uses the built-in rule-based judge and template answers, which is enough to run everything.
+**Use a language model (free tiers only):** in `.env` set `LLM_PROVIDER=groq` (or `gemini`, `openrouter`) and `LLM_API_KEY=<your free key>`. Without them the app uses the built-in rule-based judge and template answers, which is enough to run everything. Free tiers rate-limit, so ingest keeps model calls to 2 at a time, retries with backoff, and falls back to the rule-based answer if the quota runs out. Model names change; override them with `LLM_FAST_MODEL` / `LLM_ANSWER_MODEL`.
 
 ## Commands
 
@@ -51,8 +51,8 @@ Sign in as `admin@conrag.test`, `analyst@conrag.test` or `viewer@conrag.test` wi
 | `npm run db:dev` | Dev database (PGlite: real Postgres in WASM + pgvector), data in `.pgdata/` |
 | `npm run db:migrate` | Apply migrations (`-- --reset` variant: `npm run db:reset` drops everything first) |
 | `npm run db:seed` / `demo:load` | Demo users, sources, documents |
-| `npm test` | 62 database, unit, pipeline and query-pack tests on an in-memory Postgres |
-| `npm run test:e2e` | Builds, then 17 browser tests (Edge/Chrome) on the production server; refreshes `docs/screenshots` |
+| `npm test` | 72 database, unit, language-model-provider, pipeline and query-pack tests on an in-memory Postgres |
+| `npm run test:e2e` | Builds, then 18 browser tests (Edge/Chrome) on the production server; refreshes `docs/screenshots` |
 | `npm run eval` | Evaluation harness; rewrites `docs/EVALUATION.md` |
 | `npm run docs` | Regenerates the data dictionary and query pack from the live database |
 | `npm run lint` / `typecheck` | ESLint, `tsc --noEmit` |

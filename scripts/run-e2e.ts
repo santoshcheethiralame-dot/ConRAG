@@ -31,7 +31,7 @@ async function main() {
     SESSION_SECRET: "e2e-secret-e2e-secret-e2e-secret-123",
     SEED_PASSWORD: PASSWORD,
     LLM_PROVIDER: "offline",
-    ANTHROPIC_API_KEY: "",
+    LLM_API_KEY: "",
     EMBEDDING_PROVIDER: "local",
     NODE_NO_WARNINGS: "1",
   };

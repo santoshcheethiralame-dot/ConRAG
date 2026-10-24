@@ -1,35 +1,38 @@
 ▶ access control
-  ✔ sends anonymous visitors to the login page (1697.6503ms)
-  ✔ rejects a wrong password with a message (1223.5766ms)
-  ✔ hides admin and analyst pages from a viewer (1860.3118ms)
-  ✔ enforces roles and the JSON requirement in the API (1535.5565ms)
-  ✔ registers a new account as a viewer (1172.1061ms)
-▶ access control (8077.048ms)
+  ✔ sends anonymous visitors to the login page (1577.2184ms)
+  ✔ rejects a wrong password with a message (1155.7756ms)
+  ✔ hides admin and analyst pages from a viewer (2183.2896ms)
+  ✔ enforces roles and the JSON requirement in the API (1465.9763ms)
+  ✔ registers a new account as a viewer (1092.5289ms)
+▶ access control (8309.9678ms)
 ▶ asking questions
-  ✔ shows both sides when sources disagree, and the plain-RAG contrast (3059.899ms)
-  ✔ answers without a warning when there is no conflict (2313.2682ms)
-  ✔ records the question in the user's history (2327.9679ms)
-▶ asking questions (7702.7111ms)
+  ✔ shows both sides when sources disagree, and the plain-RAG contrast (3619.2523ms)
+  ✔ answers without a warning when there is no conflict (1325.5197ms)
+  ✔ records the question in the user's history (1669.0818ms)
+▶ asking questions (6615.2394ms)
 ▶ conflict review (admin)
-  ✔ lists open conflicts and filters them (2681.5807ms)
-  ✔ resolves a conflict, supersedes the loser, and can undo it (3797.6076ms)
-  ✔ dismisses a false alarm and records it in the audit log (2347.2694ms)
-▶ conflict review (admin) (8827.2817ms)
+  ✔ lists open conflicts and filters them (3161.1067ms)
+  ✔ resolves a conflict, supersedes the loser, and can undo it (2868.1256ms)
+  ✔ dismisses a false alarm and records it in the audit log (1938.7368ms)
+▶ conflict review (admin) (7968.7964ms)
 ▶ ingesting and searching
-  ✔ lets an analyst ingest a document that contradicts existing ones (2395.0341ms)
-  ✔ refuses to ingest the same text twice and instruction-like text (1363.3386ms)
-  ✔ searches documents with full-text syntax (2002.4174ms)
-▶ ingesting and searching (5761.6687ms)
+  ✔ lets an analyst ingest a document that contradicts existing ones (2245.4413ms)
+  ✔ refuses to ingest the same text twice and instruction-like text (972.6293ms)
+  ✔ searches documents with full-text syntax (1702.239ms)
+▶ ingesting and searching (4921.0514ms)
 ▶ administration
-  ✔ shows sources, lets an admin add and edit one (2459.254ms)
-  ✔ promotes a user and refuses to demote the last admin (3650.5336ms)
-  ✔ captures the dashboard (1673.5735ms)
-▶ administration (7784.4495ms)
-ℹ tests 17
-ℹ suites 5
-ℹ pass 17
+  ✔ shows sources, lets an admin add and edit one (2105.3459ms)
+  ✔ promotes a user and refuses to demote the last admin (3532.2307ms)
+  ✔ captures the dashboard (2135.0753ms)
+▶ administration (7773.5426ms)
+▶ small screens
+  ✔ has no horizontal scrolling on a phone-sized viewport (4286.9654ms)
+▶ small screens (4287.3872ms)
+ℹ tests 18
+ℹ suites 6
+ℹ pass 18
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 136969.7442
+ℹ duration_ms 129825.342

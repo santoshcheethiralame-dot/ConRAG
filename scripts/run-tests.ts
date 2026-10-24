@@ -38,7 +38,7 @@ async function main() {
         SESSION_SECRET: "test-secret-test-secret-test-secret-1",
         EMBEDDING_PROVIDER: "hash",
         LLM_PROVIDER: "offline",
-        ANTHROPIC_API_KEY: "",
+        LLM_API_KEY: "",
         NODE_NO_WARNINGS: "1",
       },
       stdio: ["ignore", "pipe", "inherit"],

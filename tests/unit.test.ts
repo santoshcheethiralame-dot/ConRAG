@@ -7,7 +7,7 @@ import { findInjection } from "@/lib/injection";
 import { judgeOffline, numbersByUnit, scopeTokens } from "@/lib/judge-offline";
 import { offlineAnswer, offlineClaims, parseClaims, parseJsonReply, parseJudgement, type ConflictView, type EvidenceClaim } from "@/lib/llm";
 import { tooMany, clearLimits } from "@/lib/ratelimit";
-import { claimScore, corroborationFactor, lean, recencyFactor } from "@/lib/score";
+import { claimScore, corroborationFactor, lean, recencyFactor, suggestResolution } from "@/lib/score";
 import { groupEvidence } from "@/lib/ask";
 import { contentHash, mapLimit } from "@/lib/ingest";
 import { sessionFromToken } from "@/lib/auth";
@@ -146,6 +146,14 @@ describe("scoring", () => {
     assert.ok(claimScore({ ...base, publishedAt: "2025-12-01" }, now) > claimScore(base, now));
     assert.ok(claimScore({ ...base, corroboration: 2 }, now) > claimScore(base, now));
   });
+  it("suggests the more reliable and newer side of a conflict", () => {
+    const now = Date.parse("2026-01-01");
+    const official = { reliability: 0.9, date: "2025-06-01" };
+    const wiki = { reliability: 0.35, date: "2023-02-01" };
+    assert.deepEqual(suggestResolution(official, wiki, now), { side: "a", reasons: ["more reliable source", "newer"] });
+    assert.equal(suggestResolution(wiki, official, now).side, "b");
+    assert.equal(suggestResolution({ reliability: 0.6, date: "2025-01-01" }, { reliability: 0.6, date: "2025-01-02" }, now).side, "undecided");
+  });
   it("calls near-ties undecided", () => {
     assert.equal(lean(1, 0.95), "undecided");
     assert.equal(lean(1, 0.5), "a");
@@ -204,6 +212,7 @@ describe("offline answer", () => {
   });
   it("states the disagreement, both sides and why one leads", () => {
     const t = offlineAnswer({ question: "q", claims: [], conflicts: [conflict("a")] });
+    assert.match(t, /^Best-supported answer: "claim 1" \(Circular, 2025-01-01\)/);
     assert.match(t, /disagree/);
     assert.match(t, /Circular/);
     assert.match(t, /Wiki/);

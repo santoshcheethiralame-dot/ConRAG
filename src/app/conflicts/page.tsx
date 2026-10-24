@@ -1,7 +1,8 @@
 import { Badge, btn, Card, ConflictCompare, Empty, input, PageHeader } from "@/components/ui";
 import { ResolveActions } from "@/components/ResolveActions";
 import { requirePage } from "@/lib/auth";
-import { conflictSources, listConflicts } from "@/lib/queries";
+import { suggestResolution } from "@/lib/score";
+import { listConflicts, listSources } from "@/lib/queries";
 
 export const metadata = { title: "Conflicts · ConRAG" };
 
@@ -12,10 +13,12 @@ export default async function ConflictsPage({ searchParams }: { searchParams: Pr
   const p = await searchParams;
   const status = p.status === "resolved" ? "resolved" : "open";
   const minConfidence = Math.min(1, Math.max(0, Number(p.minConfidence) || 0));
-  const [rows, sources] = await Promise.all([
+  const [rows, sourceRows] = await Promise.all([
     listConflicts({ status, minConfidence, source: p.source || undefined, text: p.q?.trim() || undefined }),
-    conflictSources(),
+    listSources(),
   ]);
+  const sources = sourceRows.map((r) => r.name).sort();
+  const reliability = new Map(sourceRows.map((r) => [r.name, r.reliability]));
   const isAdmin = s.role === "admin";
 
   return (
@@ -71,7 +74,15 @@ export default async function ConflictsPage({ searchParams }: { searchParams: Pr
         <Empty>{status === "open" ? "Nothing to review with these filters." : "No resolved conflicts yet."}</Empty>
       ) : (
         <div className="space-y-4">
-          {rows.map((c) => (
+          {rows.map((c) => {
+            const sg =
+              status === "open"
+                ? suggestResolution(
+                    { reliability: reliability.get(c.source_a) ?? c.trust_a, date: c.date_a },
+                    { reliability: reliability.get(c.source_b) ?? c.trust_b, date: c.date_b },
+                  )
+                : null;
+            return (
             <Card key={c.relation_id} data-testid="conflict-card">
               <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
                 <Badge tone={status === "open" ? "amber" : "emerald"}>{status}</Badge>
@@ -86,12 +97,23 @@ export default async function ConflictsPage({ searchParams }: { searchParams: Pr
               <ConflictCompare
                 a={{ claimId: c.claim_a, text: c.text_a, source: c.source_a, trust: c.trust_a, date: c.date_a, winner: c.resolved?.winner_claim_id === c.claim_a }}
                 b={{ claimId: c.claim_b, text: c.text_b, source: c.source_b, trust: c.trust_b, date: c.date_b, winner: c.resolved?.winner_claim_id === c.claim_b }}
+                lean={sg?.side}
                 confidence={c.confidence}
                 rationale={c.rationale}
               />
-              {isAdmin && <ResolveActions relationId={c.relation_id} claimA={c.claim_a} claimB={c.claim_b} resolved={status === "resolved"} />}
+              {sg && (
+                <p className="mt-2 text-xs text-slate-600" data-testid="suggestion">
+                  {sg.side === "undecided"
+                    ? "Suggestion: no clear favourite from source reliability and date. Read both and decide."
+                    : `Suggestion: keep the ${sg.side === "a" ? "left" : "right"} claim (${sg.reasons.join(", ") || "higher overall score"}).`}
+                </p>
+              )}
+              {isAdmin && (
+                <ResolveActions relationId={c.relation_id} claimA={c.claim_a} claimB={c.claim_b} resolved={status === "resolved"} suggested={sg?.side} />
+              )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

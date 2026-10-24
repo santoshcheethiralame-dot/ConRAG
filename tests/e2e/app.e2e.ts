@@ -26,7 +26,7 @@ async function session(email?: string, password = PW): Promise<Page> {
   return page;
 }
 
-const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
+const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: !name.includes("mobile") });
 const openCount = async (page: Page) => Number(/^(\d+)/.exec((await page.getByTestId("conflict-count").innerText()) ?? "")?.[1]);
 
 before(async () => {
@@ -137,6 +137,7 @@ describe("conflict review (admin)", () => {
     await p.goto(`${BASE}/conflicts`);
     const all = await openCount(p);
     assert.ok(all >= 15, `expected many open conflicts, got ${all}`);
+    assert.match(await p.getByTestId("suggestion").first().innerText(), /Suggestion: /);
     await shot(p, "05-conflicts");
     await p.goto(`${BASE}/conflicts?q=library`);
     const lib = await openCount(p);
@@ -263,5 +264,26 @@ describe("administration", () => {
     await p.goto(`${BASE}/`);
     await p.getByText("Strongest open conflicts").waitFor();
     await shot(p, "13-dashboard");
+  });
+});
+
+describe("small screens", () => {
+  it("has no horizontal scrolling on a phone-sized viewport", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
+    open.push(ctx);
+    const p = await ctx.newPage();
+    p.setDefaultTimeout(30_000);
+    await p.goto(`${BASE}/login`);
+    await p.getByLabel("Email").fill("admin@conrag.test");
+    await p.getByLabel("Password").fill(PW);
+    await p.getByRole("button", { name: "Sign in" }).click();
+    await p.getByTestId("whoami").waitFor();
+    for (const [path, name] of [["/", "14-mobile-dashboard"], ["/conflicts", "15-mobile-conflicts"], ["/sources", "16-mobile-sources"]]) {
+      await p.goto(`${BASE}${path}`);
+      await p.waitForLoadState("networkidle");
+      const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(overflow <= 1, `${path} overflows by ${overflow}px`);
+      await shot(p, name);
+    }
   });
 });

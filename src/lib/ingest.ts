@@ -29,7 +29,6 @@ export interface IngestResult {
 
 const MAX_CLAIMS = 300;
 const MAX_JUDGEMENTS = 200;
-const CONCURRENCY = 4;
 
 export async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -77,6 +76,7 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
   if (!src) throw new HttpError(422, "Unknown source");
 
   const llm = getLlm();
+  const CONCURRENCY = cfg.LLM_CONCURRENCY;
   const chunks = chunkText(body);
   if (chunks.length === 0) throw new HttpError(422, "Document is empty");
   const chunkVecs = await embed(chunks);

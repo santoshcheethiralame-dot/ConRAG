@@ -19,9 +19,9 @@ Say: a normal RAG retrieves a chunk and answers. If two documents disagree it pi
 
 ## 4. Closing the loop (2 min), sign out, sign in as **admin**
 1. **Conflicts** → filter by source *Student Wiki*, confidence ≥ 70 %.
-2. Open the library fine conflict (Rs 2 vs Rs 5). Add a note, **Keep left claim**.
+2. Open the library fine conflict (Rs 2 vs Rs 5). Read the *Suggestion* line (more reliable source, newer), add a note, **Keep left claim**.
 3. **Ask** *What is the library fine per day?* → the Rs 5 claim is gone from ConRAG's answer; plain RAG still shows it.
-4. **Sources** → the blog's *reliability* dropped below its declared trust, calculated by a stored function from resolved conflicts.
+4. **Sources** → the blog's *reliability* dropped below its declared trust (stored function over resolved conflicts), and the *Contradicted* column shows which sources conflict with the others most.
 5. **Audit** → trigger-written rows for the relation and the resolution. Back on **Conflicts → Resolved**, **Undo resolution** and ask again: the conflict returns.
 6. Dismiss a false alarm with **Not a conflict** (for example the lab-attendance exception).
 
