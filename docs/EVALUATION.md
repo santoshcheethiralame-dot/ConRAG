@@ -85,5 +85,5 @@ Average ConRAG answer time 54 ms per question (retrieval, scoring and answer, pl
 ## Reading the numbers
 
 - The corpus and labels are written by the authors, so they are a regression and sanity check, not a benchmark of real-world performance.
-- Without an API key the judge is a rule-based fallback (numbers, times, dates, negation, antonyms, scope and audience tokens). With `ANTHROPIC_API_KEY` set the same script exercises the language-model judge; rerun it and compare.
+- Without an API key the judge is a rule-based fallback (numbers, times, dates, negation, antonyms, scope and audience tokens). With `LLM_PROVIDER` and `LLM_API_KEY` set (a free-tier model) the same script exercises the language-model judge; rerun it and compare.
 - The hard pair (a general rule against a narrower exception) is the kind of case rules cannot settle and a language model usually can.
