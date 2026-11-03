@@ -25,9 +25,9 @@ The brief asks for a SQL database plus a NoSQL or vector one, with the choice ju
 ```
 users(id PK, email UQ(lower), password_hash, role, created_at)
 sources(id PK, name UQ, url, kind, trust_score, created_by FK→users, created_at)
-documents(id PK, source_id FK→sources, title, body, published_at, content_hash UQ, tsv generated, uploaded_by FK→users, created_at)
+documents(id PK, source_id FK→sources, title, body, published_at, content_hash, UQ(source_id, content_hash), tsv generated, uploaded_by FK→users, created_at)
 chunks(id PK, document_id FK→documents, ordinal, text, embedding vector(384), UQ(document_id, ordinal), UQ(id, document_id))
-claims(id PK, chunk_id, document_id, subject, text, embedding vector(384), extracted_at, status, superseded_at,
+claims(id PK, chunk_id, document_id, subject, text, embedding vector(384), attribute_key, extracted_at, status, superseded_at,
        FK(chunk_id, document_id)→chunks(id, document_id))
 claim_relations(id PK, claim_a FK→claims, claim_b FK→claims, relation, confidence, rationale, judged_by, judged_at,
                 CHECK claim_a < claim_b, UQ(claim_a, claim_b))
@@ -75,7 +75,8 @@ The brief asks for validation at the database level. None of these depend on the
 |---|---|
 | Valid email, bcrypt-shaped hash, case-insensitive unique email | `CHECK`, unique index on `lower(email)` |
 | Source trust in [0, 1], http(s) URL, non-blank name, unique name | `CHECK`, `UNIQUE` |
-| No empty documents; no dates before 1990; no duplicate document text | `CHECK`, `content_hash UNIQUE` |
+| No empty documents; no dates before 1990; no document text uploaded twice to one source (the same text from another source is allowed: it is corroboration) | `CHECK`, `UNIQUE (source_id, content_hash)` |
+| An attribute key is 32 hex characters or absent | `CHECK` |
 | A claim belongs to the document its chunk belongs to | composite FK |
 | A relation links two *different* documents, each pair stored once and ordered | trigger `relation_guard`, `CHECK (claim_a < claim_b)`, `UNIQUE` |
 | Confidence in [0, 1]; ranks positive; chunk ordinals non-negative | `CHECK` |
@@ -94,7 +95,7 @@ The brief asks for validation at the database level. None of these depend on the
 |---|---|
 | Transactions | document ingest; question logging; every migration |
 | Views | `v_open_conflicts` (8-table join), `v_source_stats` |
-| Stored functions | `find_similar_claims`, `retrieve_conflicts`, `source_reliability`, `search_documents`, `conflict_cluster` |
+| Stored functions | `find_similar_claims`, `claims_with_attribute`, `retrieve_conflicts`, `source_reliability`, `search_documents`, `conflict_cluster` |
 | Triggers | six: relation guard, resolution check/apply/undo, last-admin guard, audit |
 | Indexing | HNSW (2), GIN on tsvector, partial indexes (`WHERE relation = 'contradicts'`, `WHERE status = 'active'`), composite and covering btrees |
 | Full-text search | generated `tsvector`, `websearch_to_tsquery`, `ts_rank`, `ts_headline` |
@@ -108,6 +109,10 @@ The brief asks for validation at the database level. None of these depend on the
 | Detect conflicts at ingest, not at question time | Judging pairs is the slow, costly step. Paying it once per document keeps questions fast and makes conflicts first-class data that can be reviewed, resolved and audited. |
 | Store only contradictions and supports, not neutral pairs | Neutral carries no information and would be the bulk of the table. |
 | Vector shortlist before judging | Bounds model calls at claims × 5 instead of claims². |
+| Exact attribute-key lookup beside the vector shortlist | Embeddings are fuzzy: two claims about one attribute can sit below the similarity floor. A key built from masked, negation-free content words finds them with a partial btree index and no model. |
+| Graph expansion at question time | The conflict is the product. If the opposing claim is outside the question's top-k, plain similarity retrieval hides it, so contradiction partners are fetched through the stored edges. |
+| Duplicate rule per source | Identical text from a second source is the strongest corroboration there is; refusing it threw that signal away. |
+| Weak `supports` edges do not merge positions | A false "supports" merges two claims into one position and adds corroboration, which can hide a real conflict. Edges under 0.7 confidence are ignored for grouping and corroboration. |
 | Judge fallback that needs no API key | The application, tests and demo run offline; the model-based judge is an upgrade, not a dependency. |
 | Position grouping before reporting conflicts | Without it, one disagreement backed by several sources shows up as several pair conflicts. |
 | Keep the conflict lean advisory and explicit | When scores are within 10 % the answer says *undecided* and sends it to an admin rather than guessing. |

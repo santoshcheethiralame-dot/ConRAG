@@ -77,6 +77,36 @@ describe("table constraints", () => {
       await fails(c, "22000", "INSERT INTO chunks (document_id, ordinal, text, embedding) VALUES ($1, 0, 't', '[1,2,3]'::vector)", [d]);
     }));
 
+  it("refuses the same text twice for one source but allows it from another", () =>
+    tx(async (c) => {
+      const w = await world(c);
+      const s1 = await w.src();
+      const s2 = await w.src();
+      const h = "same".padEnd(64, "0");
+      const ins = "INSERT INTO documents (source_id, title, body, content_hash) VALUES ($1, 't', 'b', $2)";
+      await c.query(ins, [s1, h]);
+      await fails(c, "23505", ins, [s1, h]);
+      await c.query(ins, [s2, h]); // corroboration, not a duplicate
+    }));
+
+  it("accepts only a well-formed attribute key and finds claims by it", () =>
+    tx(async (c) => {
+      const w = await world(c);
+      const s = await w.src();
+      const d1 = await w.doc(s);
+      const d2 = await w.doc(s);
+      const key = "0123456789abcdef0123456789abcdef";
+      const a = await w.claim(d1, [0]);
+      const b = await w.claim(d2, [3]);
+      await w.claim(d2, [5]);
+      await fails(c, "23514", "UPDATE claims SET attribute_key = 'not-a-key' WHERE id = $1", [a]);
+      await c.query("UPDATE claims SET attribute_key = $2 WHERE id IN ($1, $3)", [a, key, b]);
+      const hit = await c.query("SELECT claim_id FROM claims_with_attribute($1, $2::vector, 10, $3) ORDER BY 1", [key, hot(0), d2]);
+      assert.deepEqual(hit.rows.map((r) => Number(r.claim_id)), [a]); // other document only, same key only
+      await c.query("UPDATE claims SET status = 'superseded', superseded_at = now() WHERE id = $1", [a]);
+      assert.equal((await c.query("SELECT * FROM claims_with_attribute($1, $2::vector, 10)", [key, hot(0)])).rows.length, 1);
+    }));
+
   it("a claim cannot point at a document its chunk does not belong to", () =>
     tx(async (c) => {
       const w = await world(c);

@@ -4,7 +4,8 @@
 // Writes docs/EVALUATION.md and eval/results.json.
 //   npm run eval                      local MiniLM embeddings + offline judge (or a free-tier chat model if LLM_PROVIDER and LLM_API_KEY are set)
 //   EMBEDDING_PROVIDER=hash npm run eval
-import { writeFileSync } from "node:fs";
+//   npm run eval -- --check [--no-write]   exit 1 if a metric falls below eval/thresholds.json (CI gate); --no-write leaves docs/ and eval/results.json alone
+import { readFileSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
 import { loadCorpus, loadLabels, loadQuestions, loadSources } from "./lib/corpus";
 import { migrate } from "./lib/migrate";
@@ -194,15 +195,45 @@ ${qrows.join("\n")}
 - Without an API key the judge is a rule-based fallback (numbers, times, dates, negation, antonyms, scope and audience tokens). With \`LLM_PROVIDER\` and \`LLM_API_KEY\` set (a free-tier model) the same script exercises the language-model judge; rerun it and compare.
 - The hard pair (a general rule against a narrower exception) is the kind of case rules cannot settle and a language model usually can.
 `;
-  writeFileSync("docs/EVALUATION.md", md);
-  writeFileSync(
-    "eval/results.json",
-    JSON.stringify({ llm: llm.name, matrix, precision, recall, f1, questions: { cQ, disclosed, leanRight, leanWrong, undecided, plainRight, plainWrong, nQ, falseAlarms } }, null, 2) + "\n",
-  );
+  const noWrite = process.argv.includes("--no-write");
+  if (!noWrite) {
+    writeFileSync("docs/EVALUATION.md", md);
+    writeFileSync(
+      "eval/results.json",
+      JSON.stringify({ llm: llm.name, matrix, precision, recall, f1, questions: { cQ, disclosed, leanRight, leanWrong, undecided, plainRight, plainWrong, nQ, falseAlarms } }, null, 2) + "\n",
+    );
+  }
   console.log(md.split("## 2.")[0].split("## 1.")[1]);
   console.log(`questions: disclosed ${disclosed}/${cQ}, lean right ${leanRight}, lean wrong ${leanWrong}, undecided ${undecided}; plain right ${plainRight}/${cQ}; false alarms ${falseAlarms}/${nQ}`);
   await pool().end();
   await server.stop();
+
+  if (process.argv.includes("--check")) {
+    const all = JSON.parse(readFileSync("eval/thresholds.json", "utf8")) as Record<string, Record<string, number>>;
+    const provider = env().EMBEDDING_PROVIDER;
+    const t = all[provider];
+    if (!t) throw new Error(`eval/thresholds.json has no entry for EMBEDDING_PROVIDER=${provider}`);
+    const checks: [string, number, ">=" | "<=", number][] = [
+      ["precision", precision, ">=", t.precision],
+      ["recall", recall, ">=", t.recall],
+      ["f1", f1, ">=", t.f1],
+      ["conflicts disclosed", disclosed / cQ, ">=", t.disclosedRate],
+      ["leaned to the better-supported side", leanRight / cQ, ">=", t.leanRightRate],
+      ["leaned the wrong way (count)", leanWrong, "<=", t.leanWrongMax],
+      ["false-alarm rate", falseAlarms / nQ, "<=", t.falseAlarmRateMax],
+    ];
+    let failed = 0;
+    console.log(`\neval gate (${provider}):`);
+    for (const [name, got, op, want] of checks) {
+      const ok = op === ">=" ? got >= want : got <= want;
+      if (!ok) failed++;
+      console.log(`  ${ok ? "ok  " : "FAIL"} ${name}: ${got.toFixed(2)} ${op} ${want}`);
+    }
+    if (failed) {
+      console.error(`${failed} metric(s) below the floors in eval/thresholds.json`);
+      process.exit(1);
+    }
+  }
 }
 main().catch((e) => {
   console.error(e);

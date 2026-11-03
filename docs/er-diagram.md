@@ -1,4 +1,4 @@
-# ER diagram
+# Entity-relationship diagram
 
 Mermaid source (renders on GitHub). The image below is generated from it by `npx tsx scripts/render-er.ts`.
 
@@ -43,7 +43,7 @@ erDiagram
     text title
     text body
     date published_at
-    char content_hash UK
+    char content_hash "unique per source"
     tsvector tsv "generated"
     bigint uploaded_by FK
   }
@@ -61,6 +61,7 @@ erDiagram
     text subject
     text text
     vector384 embedding "HNSW cosine"
+    char attribute_key "same-attribute lookup"
     claim_status status
     timestamptz superseded_at
   }

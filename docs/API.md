@@ -13,7 +13,7 @@ Auth is a signed, HTTP-only, `SameSite=Lax` session cookie set by login/register
 | `POST /api/auth/logout` | any | | `200` | |
 | `GET /api/health` | public | | `{ok, pgvector}` | |
 | `POST /api/ask` | any | `{question(3-500), compare?}` | `AskResult` (below) | 30 per minute per user |
-| `POST /api/ingest` | analyst, admin | `{sourceId, title, body(20-100000), publishedAt?: "YYYY-MM-DD"}` | `201 IngestResult` | `409` duplicate, `422` unknown source or instruction-like text |
+| `POST /api/ingest` | analyst, admin | `{sourceId, title, body(20-100000), publishedAt?: "YYYY-MM-DD"}` | `201 IngestResult` | `409` same text already ingested for this source, `422` unknown source or instruction-like text |
 | `GET /api/documents` | any | `?q=` full-text query | `DocRow[]` | websearch syntax: `"phrase"`, `-exclude`, `or` |
 | `GET /api/documents/:id` | any | | `{doc, claims[]}` | claims include their relations |
 | `DELETE /api/documents/:id` | admin | | `200` | cascades to claims, relations, resolutions |

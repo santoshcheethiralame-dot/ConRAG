@@ -129,6 +129,7 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 | extracted_at | timestamp with time zone | no | now() |
 | status | claim_status | no | 'active'::claim_status |
 | superseded_at | timestamp with time zone | yes |  |
+| attribute_key | character(32) | yes |  |
 
 **Constraints**
 
@@ -143,6 +144,7 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 | claims_status_not_null | n | NOT NULL status |
 | claims_text_not_null | n | NOT NULL text |
 | claims_chunk_id_document_id_fkey | FOREIGN KEY | FOREIGN KEY (chunk_id, document_id) REFERENCES chunks(id, document_id) ON DELETE CASCADE |
+| claims_attribute_key_check | CHECK | CHECK (((attribute_key IS NULL) OR (attribute_key ~ '^[0-9a-f]{32}$'::text))) |
 | claims_superseded_ck | CHECK | CHECK (((status = 'superseded'::claim_status) = (superseded_at IS NOT NULL))) |
 | claims_text_check | CHECK | CHECK ((length(TRIM(BOTH FROM text)) > 0)) |
 
@@ -151,6 +153,7 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 | Name | Definition |
 |---|---|
 | claims_active_idx | CREATE INDEX claims_active_idx ON public.claims USING btree (id) WHERE (status = 'active'::claim_status) |
+| claims_attribute_key_idx | CREATE INDEX claims_attribute_key_idx ON public.claims USING btree (attribute_key) WHERE ((attribute_key IS NOT NULL) AND (status = 'active'::claim_status)) |
 | claims_document_idx | CREATE INDEX claims_document_idx ON public.claims USING btree (document_id) |
 | claims_embedding_hnsw | CREATE INDEX claims_embedding_hnsw ON public.claims USING hnsw (embedding vector_cosine_ops) |
 | claims_pkey | CREATE UNIQUE INDEX claims_pkey ON public.claims USING btree (id) |
@@ -214,7 +217,7 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 
 | Name | Kind | Definition |
 |---|---|---|
-| documents_content_hash_key | UNIQUE | UNIQUE (content_hash) |
+| documents_source_hash_uq | UNIQUE | UNIQUE (source_id, content_hash) |
 | documents_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 | documents_body_not_null | n | NOT NULL body |
 | documents_content_hash_not_null | n | NOT NULL content_hash |
@@ -232,8 +235,9 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 
 | Name | Definition |
 |---|---|
-| documents_content_hash_key | CREATE UNIQUE INDEX documents_content_hash_key ON public.documents USING btree (content_hash) |
+| documents_content_hash_idx | CREATE INDEX documents_content_hash_idx ON public.documents USING btree (content_hash) |
 | documents_pkey | CREATE UNIQUE INDEX documents_pkey ON public.documents USING btree (id) |
+| documents_source_hash_uq | CREATE UNIQUE INDEX documents_source_hash_uq ON public.documents USING btree (source_id, content_hash) |
 | documents_source_idx | CREATE INDEX documents_source_idx ON public.documents USING btree (source_id) |
 | documents_tsv_gin | CREATE INDEX documents_tsv_gin ON public.documents USING gin (tsv) |
 
@@ -379,6 +383,7 @@ Types use PostgreSQL names; `vector(384)` is pgvector. `bigint identity` columns
 | Name | Arguments | Returns | Language |
 |---|---|---|---|
 | audit_row |  | trigger | plpgsql |
+| claims_with_attribute | p_key character, q vector, k integer DEFAULT 10, exclude_doc bigint DEFAULT NULL::bigint | TABLE(claim_id bigint, text text, document_id bigint, source_id bigint, similarity real) | sql |
 | conflict_cluster | p_claim bigint | TABLE(claim_id bigint, depth integer) | sql |
 | find_similar_claims | q vector, k integer, exclude_doc bigint DEFAULT NULL::bigint | TABLE(claim_id bigint, text text, document_id bigint, source_id bigint, trust_score numeric, similarity real) | sql |
 | protect_last_admin |  | trigger | plpgsql |

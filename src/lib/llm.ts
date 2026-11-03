@@ -23,6 +23,8 @@ export interface EvidenceClaim {
   similarity: number;
   corroboration: number;
   score: number;
+  /** Pulled in through a conflict or support edge although it was outside the question's top-k. */
+  expanded?: boolean;
 }
 
 export interface ConflictView {

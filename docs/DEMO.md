@@ -1,4 +1,6 @@
-# Demo script (about 8 minutes)
+# Demo script
+
+About eight minutes. A guided tour of the interface using the bundled demo corpus.
 
 Setup (once): `npm run db:dev` in one terminal; in another `npm run db:migrate && npm run db:seed && npm run demo:load && npm run dev`. Open http://localhost:3000. Passwords are your `SEED_PASSWORD`.
 
@@ -29,7 +31,7 @@ Say: a normal RAG retrieves a chunk and answers. If two documents disagree it pi
 **Ingest** → source *Campus News Blog*, date today, text: `The revaluation fee is Rs 700 per paper.` plus a couple of other sentences. The result card shows claims found and contradictions detected; the new conflict appears on the dashboard.
 
 ## 6. Under the hood (1 min)
-Show [ER diagram](er-diagram.png), then in `psql` or the query pack ([QUERIES.md](QUERIES.md)): `retrieve_conflicts` (top-k, then contradiction edges inside it), the HNSW plan, and the trigger that supersedes the loser. Mention: PostgreSQL + pgvector is one store for relations, vectors and full-text so one transaction and one join cover everything.
+Show [ER diagram](er-diagram.png), then in `psql` or the query pack ([QUERIES.md](QUERIES.md)): the nearest-claims query and its HNSW plan, how `ask` follows stored contradiction edges to fetch the opposing claim even when it is outside the top-k, `claims_with_attribute` (the exact same-attribute lookup used at ingest), and the trigger that supersedes the loser. Mention: PostgreSQL + pgvector is one store for relations, vectors and full-text so one transaction and one join cover everything.
 
 ## 7. Results (30 s)
 [EVALUATION.md](EVALUATION.md): disclosure 16/16 vs 0/16, better-supported answer 16/16 vs 8/16, precision 0.85 / recall 1.00 with the rule-based judge, and what the language-model judge is for.
