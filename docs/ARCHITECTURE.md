@@ -27,12 +27,12 @@ Reads for pages go straight through `src/lib/queries.ts` (server components). Ev
 
 ### Ingest (`POST /api/ingest`, analyst or admin)
 
-1. **Guard:** reject instruction-like text (`src/lib/injection.ts`), reject an identical document (`content_hash UNIQUE`, checked before and enforced by the database), reject an unknown source.
+1. **Guard:** reject instruction-like text (`src/lib/injection.ts`), reject an identical document *for the same source* (`UNIQUE (source_id, content_hash)`, checked before and enforced by the database). The same text from a different source is accepted: it is corroboration, and its claims are judged `supports` against the first copy, reject an unknown source.
 2. **Chunk:** paragraphs are packed up to 700 characters, never splitting a sentence.
 3. **Embed** chunks with MiniLM (384-d, unit length, so cosine similarity is a dot product).
 4. **Extract claims** from each chunk: a chat model (JSON list) or, offline, one claim per sentence of five or more words. Claims are de-duplicated within the document.
 5. **Embed claims.**
-6. **Shortlist:** for each new claim, `find_similar_claims(vec, 5)` returns the nearest active claims from the *existing* knowledge base above a similarity floor (0.6). This keeps judging at O(claims × 5), not O(claims²).
+6. **Shortlist:** for each new claim, two sources of candidates from the *existing* knowledge base, unioned: `find_similar_claims(vec, 5)`, the nearest active claims above a similarity floor (0.6); and `claims_with_attribute(key, vec, 10)`, every active claim with the same **attribute key**, whatever its embedding similarity. The key (`attributeKey()` in `src/lib/judge-offline.ts`, stored in `claims.attribute_key`) is an md5 of the claim's content words after quantities are masked and negations, antonyms and months dropped, so "The fine is Rs 2 per day" and "For every book, Rs 5 per day is the fine" share a key. It is an exact, indexed lookup that finds same-attribute-different-value pairs the embedding misses. This keeps judging near O(claims × 15), not O(claims²). Key-matched pairs skip the masked-similarity gate, since the key already proves the attribute is the same.
 7. **Judge** each pair as `contradicts | supports | neutral` with confidence and a rationale (chat model, or the offline judge). At most 200 pairs per document.
 8. **Write** the document, chunks, claims and non-neutral relations inside one `BEGIN … COMMIT`. All slow work (embedding, model calls) happens before `BEGIN`, so no connection is held open for it. If anything fails, nothing is stored.
 
@@ -41,10 +41,10 @@ Neutral pairs are not stored: they carry no information and would dominate the t
 ### Ask (`POST /api/ask`, any signed-in user)
 
 1. Embed the question.
-2. `find_similar_claims(q, k=8)` over **active** claims, joined to document, source and `source_reliability(source)`, keeping similarity ≥ 0.35. Corroboration is the number of active claims linked by a `supports` relation.
-3. `retrieve_conflicts(q, k)` returns the contradiction edges whose both ends are in that retrieved set; a `supports` query returns the corroboration edges.
-4. **Group** (`groupEvidence`): claims joined by `supports` form one *position*; positions joined by `contradicts` form one *conflict*. Three claims saying 75 % against one saying 85 % is one two-sided conflict with the corroborating claims attached, not three pair conflicts. Conflicts whose closest claim is below similarity 0.5 are dropped as off-topic.
-5. **Score** each claim: `similarity × reliability × recency × corroboration` (see below) and lean to the higher side. Within 10 % the result is *undecided* and the answer tells the user an admin should resolve it.
+2. `find_similar_claims(q, k=8)` over **active** claims, joined to document, source and `source_reliability(source)`, keeping similarity ≥ 0.35. Corroboration is the number of active claims linked by a `supports` relation of confidence ≥ `SUPPORT_MIN_CONFIDENCE` (0.7).
+3. **Graph expansion** (`expandThroughRelations`): a claim that contradicts a retrieved claim may be worded differently and rank outside the top-k, which would hide the conflict. So every active claim joined to a retrieved claim by a `contradicts` edge is pulled in (up to `EXPAND_LIMIT`, 20), together with the claims that corroborate either side, so each side is a whole position. Expanded claims are flagged `expanded` and are only ever shown as part of a conflict. Then the contradiction and support edges among all these claims are read from `claim_relations`.
+4. **Group** (`groupEvidence`): claims joined by a confident `supports` edge form one *position*; positions joined by `contradicts` form one *conflict*. Three claims saying 75 % against one saying 85 % is one two-sided conflict with the corroborating claims attached, not three pair conflicts. Conflicts whose closest claim is below similarity 0.5 are dropped as off-topic.
+5. **Score** each claim: `similarity × reliability × recency × corroboration` (see below) and lean to the higher side. Within 10 % the result is *undecided* and the answer tells the user an admin should resolve it. If either side was pulled in by expansion, the sides are compared on `evidenceStrength` instead (the same score without the similarity term): both sides assert the same attribute, so how closely one happens to be worded like the question says nothing about which is right.
 6. **Answer** with the `Llm`, leading with the best-supported answer and then the disagreement: offline template, or a chat model given the evidence with source, date and reliability, instructed to state the disagreement and cite claim ids.
 7. **Log** the question, the answer and every claim used (`queries`, `query_evidence`, role *supporting* or *contradicting*) in one transaction.
 

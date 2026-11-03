@@ -5,7 +5,7 @@ import { embed } from "./embed";
 import { env } from "./env";
 import { HttpError } from "./http";
 import { findInjection } from "./injection";
-import { maskQuantities } from "./judge-offline";
+import { attributeKey, maskQuantities } from "./judge-offline";
 import { getLlm, type Judgement } from "./llm";
 
 export interface IngestInput {
@@ -53,6 +53,8 @@ interface Candidate {
   similarity: number;
   source_name: string;
   published_at: string | null;
+  /** Same attribute key as the new claim: known to be about the same attribute, so the masked-similarity gate is skipped. */
+  sameAttribute?: boolean;
 }
 
 /**
@@ -69,8 +71,9 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
   if (bad) throw new HttpError(422, "Document contains instruction-like text and was rejected", { match: bad });
 
   const hash = contentHash(body);
-  const dup = await one<{ id: number }>("SELECT id FROM documents WHERE content_hash = $1", [hash]);
-  if (dup) throw new HttpError(409, "This document was already ingested", { documentId: dup.id });
+  // Identical text from another source is not refused: it is corroboration and gets judged like any other document.
+  const dup = await one<{ id: number }>("SELECT id FROM documents WHERE content_hash = $1 AND source_id = $2", [hash, input.sourceId]);
+  if (dup) throw new HttpError(409, "This document was already ingested for this source", { documentId: dup.id });
 
   const src = await one<{ name: string }>("SELECT name FROM sources WHERE id = $1", [input.sourceId]);
   if (!src) throw new HttpError(422, "Unknown source");
@@ -95,17 +98,33 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
   });
   const claimVecs = await embed(claims.map((c) => c.text));
 
-  // Candidate pairs against claims already in the knowledge base.
-  const candidates = await mapLimit(claims, CONCURRENCY, (_, i) =>
-    rows<Candidate>(
+  // Candidate pairs against claims already in the knowledge base: the nearest neighbours by embedding,
+  // plus every claim with the same attribute key (same attribute, different value), whatever its similarity.
+  const keys = claims.map((c) => attributeKey(c.text));
+  const candidates = await mapLimit(claims, CONCURRENCY, async (_, i) => {
+    const near = await rows<Candidate>(
       `SELECT f.claim_id, f.text, f.similarity, s.name AS source_name, d.published_at
        FROM find_similar_claims($1::vector, $2) f
        JOIN documents d ON d.id = f.document_id
        JOIN sources s ON s.id = d.source_id
        WHERE f.similarity >= $3`,
       [vec(claimVecs[i]), cfg.CANDIDATES_PER_CLAIM, cfg.CANDIDATE_MIN_SIMILARITY],
-    ),
-  );
+    );
+    if (!keys[i]) return near;
+    const byKey = await rows<Candidate>(
+      `SELECT a.claim_id, a.text, a.similarity, s.name AS source_name, d.published_at
+       FROM claims_with_attribute($1, $2::vector, $3) a
+       JOIN documents d ON d.id = a.document_id
+       JOIN sources s ON s.id = d.source_id`,
+      [keys[i], vec(claimVecs[i]), cfg.CANDIDATES_PER_CLAIM * 2],
+    );
+    const keyIds = new Set(byKey.map((c) => c.claim_id));
+    const seenIds = new Set(near.map((c) => c.claim_id));
+    return [
+      ...near.map((c) => (keyIds.has(c.claim_id) ? { ...c, sameAttribute: true } : c)),
+      ...byKey.filter((c) => !seenIds.has(c.claim_id)).map((c) => ({ ...c, sameAttribute: true })),
+    ];
+  });
   const pairs = candidates
     .flatMap((list, ci) => list.map((cand) => ({ ci, cand })))
     .sort((x, y) => y.cand.similarity - x.cand.similarity)
@@ -124,7 +143,7 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
     return llm.judge(
       { text: claims[ci].text, source: src.name, date: input.publishedAt ?? null },
       { text: cand.text, source: cand.source_name, date: cand.published_at },
-      { similarity: cand.similarity, maskedSimilarity: ma && mb ? dot(ma, mb) : undefined },
+      { similarity: cand.similarity, maskedSimilarity: cand.sameAttribute ? 1 : ma && mb ? dot(ma, mb) : undefined },
     );
   });
 
@@ -149,9 +168,9 @@ export async function ingestDocument(input: IngestInput): Promise<IngestResult> 
     const claimIds: number[] = [];
     for (let i = 0; i < claims.length; i++) {
       const r = await c.query<{ id: number }>(
-        `INSERT INTO claims (chunk_id, document_id, text, embedding)
-         VALUES ($1, $2, $3, $4::vector) RETURNING id`,
-        [chunkIds[claims[i].chunk], documentId, claims[i].text, vec(claimVecs[i])],
+        `INSERT INTO claims (chunk_id, document_id, text, embedding, attribute_key)
+         VALUES ($1, $2, $3, $4::vector, $5) RETURNING id`,
+        [chunkIds[claims[i].chunk], documentId, claims[i].text, vec(claimVecs[i]), keys[i]],
       );
       claimIds.push(r.rows[0].id);
     }

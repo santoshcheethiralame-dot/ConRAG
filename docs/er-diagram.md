@@ -43,7 +43,7 @@ erDiagram
     text title
     text body
     date published_at
-    char content_hash UK
+    char content_hash "unique per source"
     tsvector tsv "generated"
     bigint uploaded_by FK
   }

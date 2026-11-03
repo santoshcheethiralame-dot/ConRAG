@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { chunkText, splitSentences } from "@/lib/chunk";
 import { EMBEDDING_DIM, hashEmbed } from "@/lib/embed";
 import { findInjection } from "@/lib/injection";
-import { judgeOffline, numbersByUnit, scopeTokens } from "@/lib/judge-offline";
+import { attributeKey, entityTokens, judgeOffline, maskQuantities, numbersByUnit, numberWordsToDigits, scopeTokens } from "@/lib/judge-offline";
 import { offlineAnswer, offlineClaims, parseClaims, parseJsonReply, parseJudgement, type ConflictView, type EvidenceClaim } from "@/lib/llm";
 import { tooMany, clearLimits } from "@/lib/ratelimit";
 import { claimScore, corroborationFactor, lean, recencyFactor, suggestResolution } from "@/lib/score";
@@ -263,5 +263,93 @@ describe("misc helpers", () => {
   it("rejects missing and forged session tokens", async () => {
     assert.equal(await sessionFromToken(undefined), null);
     assert.equal(await sessionFromToken("not.a.jwt"), null);
+  });
+});
+
+describe("offline judge: number words, units, comparatives, names, conditions", () => {
+  const j = (a: string, b: string, similarity = 0.9) => judgeOffline(a, b, { similarity });
+
+  it("turns number words into digits but leaves ordinary words alone", () => {
+    assert.equal(numberWordsToDigits("two rupees"), "2 rupees");
+    assert.equal(numberWordsToDigits("twenty five percent"), "25 percent");
+    assert.equal(numberWordsToDigits("ten pm"), "10 pm");
+    assert.equal(numberWordsToDigits("two hundred marks"), "200 marks");
+    assert.equal(numberWordsToDigits("three-fourths attendance"), "75 percent attendance");
+    assert.equal(numberWordsToDigits("no one may enter"), "no one may enter");
+    assert.equal(numberWordsToDigits("one day of leave"), "1 day of leave");
+    assert.equal(maskQuantities("The fine is two rupees per day."), maskQuantities("The fine is 5 rupees per day."));
+  });
+  it("catches different values written as words, and words against digits", () => {
+    assert.equal(j("The library fine is two rupees per day for overdue books.", "The library fine is five rupees per day for overdue books.").relation, "contradicts");
+    assert.equal(j("The hostel gate closes at ten pm.", "The hostel gate closes at 9 pm.").relation, "contradicts");
+    assert.equal(j("The hostel gate closes at ten pm.", "The hostel gate closes at 10 pm.").relation, "supports");
+    assert.equal(j("At least three-fourths attendance is required.", "A minimum of 85 percent attendance is required.").relation, "contradicts");
+  });
+  it("compares durations across units", () => {
+    assert.equal(j("The lab session lasts 2 hours.", "The lab session lasts 120 minutes.").relation, "supports");
+    assert.equal(j("The lab session lasts 2 hours.", "The lab session lasts 90 minutes.").relation, "contradicts");
+  });
+  it("reads a reversed comparison as a contradiction and a restated one as support", () => {
+    assert.equal(j("The exam fee is higher than the revaluation fee.", "The revaluation fee is higher than the exam fee.").relation, "contradicts");
+    assert.equal(j("The exam fee is higher than the revaluation fee.", "The revaluation fee is lower than the exam fee.").relation, "supports");
+    assert.equal(j("The exam fee is higher than the revaluation fee.", "The exam fee is lower than the revaluation fee.").relation, "contradicts");
+  });
+  it("never calls two different people in the same role mutual support", () => {
+    assert.deepEqual([...entityTokens("Dr. Rao is the Dean of Students.")].sort(), ["dean", "rao", "students"]);
+    const swap = j("Dr. Rao is the Dean of Students.", "Dr. Iyer is the Dean of Students.");
+    assert.equal(swap.relation, "contradicts");
+    assert.match(swap.rationale, /rao|iyer/);
+    assert.equal(j("Dr. Rao is the Dean of Students.", "Dr. Rao is the Dean of Students.").relation, "supports");
+    // not a unique role: both can be true, so neither contradicts nor supports
+    assert.equal(j("Dr. Rao teaches Physics in the second semester.", "Dr. Iyer teaches Physics in the second semester.").relation, "neutral");
+  });
+  it("compares a conditional rule with its unconditional counterpart, at lower confidence", () => {
+    const r = j("Mobile phones are allowed inside the hall if switched off.", "Mobile phones are not allowed inside the hall.");
+    assert.equal(r.relation, "contradicts");
+    assert.ok(r.confidence <= 0.7);
+    assert.match(r.rationale, /conditional/);
+    assert.equal(j("The fine is Rs 5 if the book is lost.", "The fine is Rs 2 if the book is late.").relation, "neutral");
+  });
+  it("treats each and every alike, and nobody like no one", () => {
+    assert.equal(j("The library fine is Rs 2 per day for each overdue book.", "The library fine is Rs 2 per day for every overdue book.").relation, "supports");
+    assert.equal(j("No one may enter the lab after 8 pm.", "Nobody may enter the lab after 8 pm.").relation, "supports");
+  });
+});
+
+describe("attribute key", () => {
+  it("is shared by claims about one attribute with different values or wording order", () => {
+    const a = attributeKey("The library fine is Rs 2 per day for each overdue book.");
+    assert.ok(a);
+    assert.equal(a, attributeKey("The library fine is Rs 5 per day for every overdue book."));
+    assert.equal(a, attributeKey("For each overdue book, Rs 5 per day is the library fine."));
+    assert.equal(attributeKey("Mobile phones are allowed inside the hall."), attributeKey("Mobile phones are not allowed inside the hall."));
+  });
+  it("differs for other attributes and scopes, and is null for fragments", () => {
+    const a = attributeKey("The library fine is Rs 2 per day for each overdue book.");
+    assert.notEqual(a, attributeKey("The cafeteria fine is Rs 2 per day for each broken plate."));
+    assert.notEqual(attributeKey("The girls hostel gate closes at 10 pm."), attributeKey("The boys hostel gate closes at 10 pm."));
+    assert.equal(attributeKey("Yes."), null);
+  });
+});
+
+describe("conflict grouping with expanded claims", () => {
+  const claim = (id: number, over: Partial<EvidenceClaim>): EvidenceClaim => ({
+    id, text: `c${id}`, source: "S", documentTitle: "D", trust: 0.8, reliability: 0.8, date: "2025-01-01",
+    similarity: 0.8, corroboration: 0, score: 0.5, ...over,
+  });
+  const pair = { relation_id: 1, claim_a: 1, claim_b: 2, confidence: 0.9, rationale: null };
+
+  it("compares an expanded claim on strength, not on how close its wording is to the question", () => {
+    // b is far from the question (low similarity, so a low score) but is the more reliable, newer claim.
+    const a = claim(1, { reliability: 0.4, date: "2020-01-01", similarity: 0.9, score: 0.9 * 0.4 * 0.8 });
+    const b = claim(2, { reliability: 0.9, date: "2025-06-01", similarity: 0.25, score: 0.25 * 0.9 * 1, expanded: true });
+    assert.equal(lean(a.score, b.score), "a", "scoring on similarity would pick the wrong side");
+    const { conflicts } = groupEvidence([a, b], [pair]);
+    assert.equal(conflicts[0].lean, "b");
+  });
+  it("drops expanded claims that end up in no conflict", () => {
+    const a = claim(1, {});
+    const lonely = claim(3, { expanded: true });
+    assert.deepEqual(groupEvidence([a, lonely], []).claims.map((c) => c.id), [1]);
   });
 });

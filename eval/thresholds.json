@@ -1,0 +1,21 @@
+{
+  "_comment": "Floors for `npm run eval -- --check`, per embedding provider. Raise them when the numbers improve; lower one only on purpose. 'local' (MiniLM) floors sit below the committed docs/EVALUATION.md figures; 'hash' (lexical vectors, deterministic, no download) floors sit below the current hash run.",
+  "local": {
+    "precision": 0.8,
+    "recall": 0.95,
+    "f1": 0.85,
+    "disclosedRate": 0.9,
+    "leanRightRate": 0.9,
+    "leanWrongMax": 0,
+    "falseAlarmRateMax": 0.2
+  },
+  "hash": {
+    "precision": 0.95,
+    "recall": 0.8,
+    "f1": 0.85,
+    "disclosedRate": 0.35,
+    "leanRightRate": 0.35,
+    "leanWrongMax": 0,
+    "falseAlarmRateMax": 0.1
+  }
+}

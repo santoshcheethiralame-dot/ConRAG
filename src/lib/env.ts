@@ -21,6 +21,10 @@ const schema = z.object({
   MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.35)),
   // A conflict is reported only if at least one side is this close to the question.
   CONFLICT_MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.5)),
+  // A "supports" edge below this confidence neither merges claims into one position nor counts as corroboration.
+  SUPPORT_MIN_CONFIDENCE: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.7)),
+  // How many contradiction partners / supporters a question may pull in from outside its top-k.
+  EXPAND_LIMIT: z.preprocess(blank, z.coerce.number().int().min(0).max(100).default(20)),
   CANDIDATE_MIN_SIMILARITY: z.preprocess(blank, z.coerce.number().min(0).max(1).default(0.6)),
   CANDIDATES_PER_CLAIM: z.preprocess(blank, z.coerce.number().int().min(1).max(20).default(5)),
 });

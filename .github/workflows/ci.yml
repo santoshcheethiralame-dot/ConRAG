@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, types, tests, eval gate (hash embeddings)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx next typegen && npm run typecheck
+      - run: npm test
+      # Deterministic gate: lexical embeddings, offline judge, no model download.
+      - run: EMBEDDING_PROVIDER=hash npm run eval -- --check --no-write
+
+  eval-local:
+    name: eval gate (MiniLM embeddings)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Not blocking yet: the 'local' floors in eval/thresholds.json are set from docs/EVALUATION.md and
+    # have not been confirmed by a run in this workflow. Remove continue-on-error once this job is green.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: node_modules/@huggingface/transformers/.cache
+          key: minilm-${{ hashFiles('package-lock.json') }}
+      - run: npm run eval -- --check --no-write

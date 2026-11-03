@@ -4,15 +4,16 @@ Four layers, all runnable offline with no API key.
 
 | Layer | Command | Tests | What it proves |
 |---|---|---|---|
-| Database | `npm test` | 20 in `tests/db.test.ts` | constraints, triggers, functions, views, indexes, cascades, behave as designed |
-| Unit | `npm test` | 35 in `tests/unit.test.ts` | chunking, offline judge, scoring, grouping, parsing, rate limiter, injection filter |
+| Database | `npm test` | 22 in `tests/db.test.ts` | constraints, triggers, functions, views, indexes, cascades, behave as designed |
+| Unit | `npm test` | 46 in `tests/unit.test.ts` | chunking, offline judge, scoring, grouping, parsing, rate limiter, injection filter |
 | Model provider | `npm test` | 9 in `tests/llm.test.ts` | the free-tier chat provider against a fake OpenAI-compatible endpoint: request shape, key, fenced untrusted text, JSON parsing, retries on 429/5xx, graceful degradation |
 | Pipeline + query pack | `npm test` | 8 in `tests/pipeline.test.ts` and `tests/queries.test.ts` | ingest → ask → resolve → undo through the real code; all 15 documented queries run |
+| Ingest candidates + graph expansion | `npm test` | 10 in `tests/ingest-candidates.test.ts` and `tests/ask-expansion.test.ts` | per-source duplicate rule; a conflict only the attribute-key lookup can find; a contradiction partner outside the top-k is pulled in (with a control that misses it); weak `supports` edges are ignored |
 | End to end | `npm run test:e2e` | 18 in `tests/e2e/app.e2e.ts` | real browser against the production build: auth, roles, ask, resolve, ingest, search, admin |
 
 `npm test` starts an in-memory PostgreSQL + pgvector (PGlite), applies the migrations, runs the suites one at a time and tears everything down. `npm run test:e2e` additionally builds the app, loads the demo corpus with the real MiniLM embeddings, starts `next start`, and drives Edge (or Chrome) with Playwright. Raw output: [test-output.txt](test-output.txt), [e2e-output.txt](e2e-output.txt). Screenshots from the e2e run are in [screenshots/](screenshots).
 
-**Result at the time of writing: 72 of 72 and 18 of 18 passing; `tsc` and ESLint clean; `next build` succeeds.**
+**Result at the time of writing: 95 of 95 unit/database/pipeline tests passing (`npm test`) and 18 of 18 end-to-end tests (last run before migration 005; not re-run since, as it needs a browser and the model download); `tsc` and ESLint clean; `next build` succeeds.**
 
 ## Database tests (`tests/db.test.ts`)
 
@@ -20,7 +21,7 @@ Each test runs in a transaction that is rolled back. Failures are asserted by SQ
 
 | Group | Cases |
 |---|---|
-| Table constraints | malformed email, non-bcrypt hash, trust out of range, bad URL, blank name, bad enum; case-insensitive unique email, unique source name; blank title, date before 1990, missing source, negative ordinal, wrong vector dimension; claim cannot reference a foreign document's chunk |
+| Table constraints | same text twice for one source refused, allowed from another; malformed attribute key; `claims_with_attribute` (other document, same key, active only); malformed email, non-bcrypt hash, trust out of range, bad URL, blank name, bad enum; case-insensitive unique email, unique source name; blank title, date before 1990, missing source, negative ordinal, wrong vector dimension; claim cannot reference a foreign document's chunk |
 | Claim relations | pair order, same-document ban, confidence range, duplicate pair; audit row for insert, update and delete with correct old/new data |
 | Vector functions | ordering by cosine, `k`, `exclude_doc`, superseded claims hidden, similarity value; `retrieve_conflicts` only returns contradiction edges inside the set; **HNSW and GIN indexes appear in the query plans** |
 | Conflict resolution | bad winner, non-contradiction; supersede + view + reliability; one resolution per relation; undo reactivates, unless the claim lost elsewhere; cannot resolve with a superseded claim; status/timestamp consistency |
@@ -30,7 +31,7 @@ Each test runs in a transaction that is rolled back. Failures are asserted by SQ
 
 ## Unit tests (`tests/unit.test.ts`)
 
-Chunker (decimals, abbreviations such as `Rs.`, size limit, no split sentences); hash embedding (dimension, unit length, topical closeness); offline judge (different numbers, clock times, dates, negation, antonyms, supports, scope and audience guards, units and times normalised, bare years ignored); claim extraction; model reply parsing (JSON in prose and fences, validation, bad confidence); scoring (recency, corroboration cap, ranking, undecided band); evidence grouping (positions and conflicts, far-from-question conflicts dropped); offline answer text; injection filter; rate limiter window; content hash; bounded concurrency; forged and missing tokens.
+Chunker (decimals, abbreviations such as `Rs.`, size limit, no split sentences); hash embedding (dimension, unit length, topical closeness); offline judge (different numbers, clock times, dates, negation, antonyms, supports, scope and audience guards, units and times normalised, bare years ignored; number words, durations across units, reversed comparisons, different names in a unique role, conditional rules, each/every); attribute key; grouping with expanded claims (compared on strength, uncontested ones dropped); claim extraction; model reply parsing (JSON in prose and fences, validation, bad confidence); scoring (recency, corroboration cap, ranking, undecided band); evidence grouping (positions and conflicts, far-from-question conflicts dropped); offline answer text; injection filter; rate limiter window; content hash; bounded concurrency; forged and missing tokens.
 
 ## Pipeline tests (`tests/pipeline.test.ts`)
 

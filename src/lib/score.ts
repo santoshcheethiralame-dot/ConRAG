@@ -23,6 +23,15 @@ export function claimScore(c: Scorable, now = Date.now()): number {
   return c.similarity * c.reliability * recencyFactor(c.publishedAt, now) * corroborationFactor(c.corroboration);
 }
 
+/**
+ * How strong a claim is as a source of truth, independent of the question: reliability, recency and
+ * corroboration without the similarity term. Two sides of a conflict assert the same attribute, so
+ * how closely each happens to be worded like the question is not evidence about which is right.
+ */
+export function evidenceStrength(c: { reliability: number; date: string | null; corroboration: number }, now = Date.now()): number {
+  return claimScore({ similarity: 1, reliability: c.reliability, publishedAt: c.date, corroboration: c.corroboration }, now);
+}
+
 export type Lean = "a" | "b" | "undecided";
 
 /** Which side of a contradiction the evidence favours. Within 10% counts as undecided. */

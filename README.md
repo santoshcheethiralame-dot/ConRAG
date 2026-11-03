@@ -51,9 +51,10 @@ Sign in as `admin@conrag.test`, `analyst@conrag.test` or `viewer@conrag.test` wi
 | `npm run db:dev` | Dev database (PGlite: real Postgres in WASM + pgvector), data in `.pgdata/` |
 | `npm run db:migrate` | Apply migrations (`-- --reset` variant: `npm run db:reset` drops everything first) |
 | `npm run db:seed` / `demo:load` | Demo users, sources, documents |
-| `npm test` | 72 database, unit, language-model-provider, pipeline and query-pack tests on an in-memory Postgres |
+| `npm run db:backfill` | Fill `claims.attribute_key` for claims ingested before migration 005 |
+| `npm test` | 95 database, unit, language-model-provider, pipeline, ingest-candidate, graph-expansion and query-pack tests on an in-memory Postgres |
 | `npm run test:e2e` | Builds, then 18 browser tests (Edge/Chrome) on the production server; refreshes `docs/screenshots` |
-| `npm run eval` | Evaluation harness; rewrites `docs/EVALUATION.md` |
+| `npm run eval` | Evaluation harness; rewrites `docs/EVALUATION.md`. `-- --check` exits 1 if a metric drops below `eval/thresholds.json` (the CI gate); `--no-write` leaves the docs alone |
 | `npm run docs` | Regenerates the data dictionary and query pack from the live database |
 | `npm run lint` / `typecheck` | ESLint, `tsc --noEmit` |
 
@@ -73,11 +74,12 @@ Sign in as `admin@conrag.test`, `analyst@conrag.test` or `viewer@conrag.test` wi
 | [docs/EVALUATION.md](docs/EVALUATION.md) | ConRAG vs plain RAG on a labelled corpus (generated) |
 | [docs/DEMO.md](docs/DEMO.md) | Script for the final demonstration |
 | [docs/requirements-map.md](docs/requirements-map.md) | Each item of the course brief and where it is satisfied |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What is left to build, in suggested order |
 
 ## Layout
 
 ```
-db/migrations/     versioned DDL, functions, triggers, views (001-004)
+db/migrations/     versioned DDL, functions, triggers, views (001-005)
 db/queries.sql     the documented query pack (executed by the tests)
 db/reset.sql       DROP everything
 src/app/           Next.js pages and /api route handlers

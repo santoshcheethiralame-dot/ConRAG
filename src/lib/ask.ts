@@ -2,7 +2,7 @@ import { rows, vec, withTx } from "./db";
 import { embed } from "./embed";
 import { env } from "./env";
 import { getLlm, type ConflictView, type EvidenceClaim } from "./llm";
-import { claimScore, lean } from "./score";
+import { claimScore, evidenceStrength, lean } from "./score";
 
 export interface AskResult {
   queryId: number;
@@ -28,7 +28,7 @@ interface ClaimRow {
   corroboration: number;
 }
 
-const toEvidence = (r: ClaimRow): EvidenceClaim => {
+const toEvidence = (r: ClaimRow, expanded = false): EvidenceClaim => {
   const base = {
     id: r.claim_id,
     text: r.text,
@@ -42,27 +42,82 @@ const toEvidence = (r: ClaimRow): EvidenceClaim => {
   };
   return {
     ...base,
+    ...(expanded ? { expanded: true } : {}),
     score: Math.round(
       claimScore({ similarity: r.similarity, reliability: r.reliability, publishedAt: r.published_at, corroboration: r.corroboration }) * 1000,
     ) / 1000,
   };
 };
 
+/** Active supporting claims linked to claim `id`; SQL parameter number `p` holds the minimum edge confidence. */
+const CORROBORATION = (id: string, p: number) => `(SELECT count(*) FROM claim_relations r
+               JOIN claims o ON o.id = CASE WHEN r.claim_a = ${id} THEN r.claim_b ELSE r.claim_a END
+              WHERE r.relation = 'supports' AND r.confidence >= ${"$"}${p} AND ${id} IN (r.claim_a, r.claim_b) AND o.status = 'active')::int`;
+
 /** Active claims nearest the question, with provenance, reliability and corroboration. */
-async function retrieveClaims(qv: string, k: number, minSim: number): Promise<ClaimRow[]> {
+async function retrieveClaims(qv: string, k: number, minSim: number, minSupport: number): Promise<ClaimRow[]> {
   return rows<ClaimRow>(
     `SELECT f.claim_id, f.text, f.similarity, d.title AS doc_title, d.published_at,
             s.name AS source_name, s.trust_score, source_reliability(s.id) AS reliability,
-            (SELECT count(*) FROM claim_relations r
-               JOIN claims o ON o.id = CASE WHEN r.claim_a = f.claim_id THEN r.claim_b ELSE r.claim_a END
-              WHERE r.relation = 'supports' AND f.claim_id IN (r.claim_a, r.claim_b) AND o.status = 'active')::int AS corroboration
+            ${CORROBORATION("f.claim_id", 4)} AS corroboration
      FROM find_similar_claims($1::vector, $2) f
      JOIN documents d ON d.id = f.document_id
      JOIN sources s ON s.id = d.source_id
      WHERE f.similarity >= $3
      ORDER BY f.similarity DESC`,
-    [qv, k, minSim],
+    [qv, k, minSim, minSupport],
   );
+}
+
+/** The same row shape for specific active claims, with their similarity to the question. */
+async function claimsByIds(qv: string, ids: number[], minSupport: number): Promise<ClaimRow[]> {
+  if (ids.length === 0) return [];
+  return rows<ClaimRow>(
+    `SELECT c.id AS claim_id, c.text, (1 - (c.embedding <=> $1::vector))::float AS similarity,
+            d.title AS doc_title, d.published_at, s.name AS source_name, s.trust_score,
+            source_reliability(s.id) AS reliability, ${CORROBORATION("c.id", 3)} AS corroboration
+     FROM claims c
+     JOIN documents d ON d.id = c.document_id
+     JOIN sources s ON s.id = d.source_id
+     WHERE c.id = ANY($2::bigint[]) AND c.status = 'active'`,
+    [qv, ids, minSupport],
+  );
+}
+
+/**
+ * Graph expansion. A question retrieves its nearest claims, but the claim that contradicts one of them
+ * may be worded differently and rank outside the top-k, which would hide exactly the conflict ConRAG
+ * exists to show. So pull in, through stored relations: every active claim that contradicts a retrieved
+ * claim, and the claims that corroborate either side of such a conflict (so each side is shown as a
+ * whole position). Expanded claims are flagged and only ever shown as part of a conflict.
+ */
+async function expandThroughRelations(qv: string, retrieved: ClaimRow[], limit: number, minSupport: number): Promise<ClaimRow[]> {
+  if (retrieved.length === 0 || limit === 0) return [];
+  const have = new Set(retrieved.map((r) => r.claim_id));
+  const ids = [...have];
+  const partners = await rows<{ id: number; mine: number }>(
+    `SELECT DISTINCT CASE WHEN r.claim_a = ANY($1::bigint[]) THEN r.claim_b ELSE r.claim_a END AS id,
+            CASE WHEN r.claim_a = ANY($1::bigint[]) THEN r.claim_a ELSE r.claim_b END AS mine
+     FROM claim_relations r
+     JOIN claims ca ON ca.id = r.claim_a AND ca.status = 'active'
+     JOIN claims cb ON cb.id = r.claim_b AND cb.status = 'active'
+     WHERE r.relation = 'contradicts' AND (r.claim_a = ANY($1::bigint[]) OR r.claim_b = ANY($1::bigint[]))`,
+    [ids],
+  );
+  if (partners.length === 0) return [];
+  const partnerIds = [...new Set(partners.map((p) => p.id))].filter((id) => !have.has(id)).slice(0, limit);
+  // Claims on either side of a contradiction: the retrieved ones that have a partner, and the partners.
+  const contested = [...new Set([...partners.map((p) => p.mine), ...partnerIds])];
+  const supporters = await rows<{ id: number }>(
+    `SELECT DISTINCT CASE WHEN r.claim_a = ANY($1::bigint[]) THEN r.claim_b ELSE r.claim_a END AS id
+     FROM claim_relations r
+     JOIN claims ca ON ca.id = r.claim_a AND ca.status = 'active'
+     JOIN claims cb ON cb.id = r.claim_b AND cb.status = 'active'
+     WHERE r.relation = 'supports' AND r.confidence >= $2 AND (r.claim_a = ANY($1::bigint[]) OR r.claim_b = ANY($1::bigint[]))`,
+    [contested, minSupport],
+  );
+  const extra = [...new Set([...partnerIds, ...supporters.map((x) => x.id)])].filter((id) => !have.has(id)).slice(0, limit * 2);
+  return claimsByIds(qv, extra, minSupport);
 }
 
 /** What a plain RAG sees: the nearest claims, whether or not they were superseded, no conflict data. */
@@ -137,11 +192,12 @@ export function groupEvidence(
       b: mb[0],
       alsoA: ma.slice(1),
       alsoB: mb.slice(1),
-      lean: lean(ma[0].score, mb[0].score),
+      // An expanded claim may be worded far from the question; its distance says nothing about who is right.
+      lean: ma[0].expanded || mb[0].expanded ? lean(evidenceStrength(ma[0]), evidenceStrength(mb[0])) : lean(ma[0].score, mb[0].score),
     });
   }
   conflicts.sort((x, y) => Math.max(y.a.similarity, y.b.similarity) - Math.max(x.a.similarity, x.b.similarity));
-  return { conflicts, claims: retrieved.filter((c) => !contested.has(c.id)) };
+  return { conflicts, claims: retrieved.filter((c) => !contested.has(c.id) && !c.expanded) };
 }
 
 export async function ask(question: string, userId: number | null, opts: { compare?: boolean } = {}): Promise<AskResult> {
@@ -151,18 +207,23 @@ export async function ask(question: string, userId: number | null, opts: { compa
   const [qvRaw] = await embed([question]);
   const qv = vec(qvRaw);
 
-  const retrieved = (await retrieveClaims(qv, cfg.RETRIEVAL_K, cfg.MIN_SIMILARITY)).map(toEvidence);
+  const top = await retrieveClaims(qv, cfg.RETRIEVAL_K, cfg.MIN_SIMILARITY, cfg.SUPPORT_MIN_CONFIDENCE);
+  const extra = await expandThroughRelations(qv, top, cfg.EXPAND_LIMIT, cfg.SUPPORT_MIN_CONFIDENCE);
+  const retrieved = [...top.map((r) => toEvidence(r)), ...extra.map((r) => toEvidence(r, true))];
   const ids = retrieved.map((c) => c.id);
   const pairs = retrieved.length
     ? await rows<PairRow>(
-        "SELECT relation_id, claim_a, claim_b, confidence, rationale FROM retrieve_conflicts($1::vector, $2)",
-        [qv, cfg.RETRIEVAL_K],
+        `SELECT r.id AS relation_id, r.claim_a, r.claim_b, r.confidence, r.rationale
+         FROM claim_relations r
+         WHERE r.relation = 'contradicts' AND r.claim_a = ANY($1::bigint[]) AND r.claim_b = ANY($1::bigint[])`,
+        [ids],
       )
     : [];
   const supports = retrieved.length
     ? await rows<{ claim_a: number; claim_b: number }>(
-        "SELECT claim_a, claim_b FROM claim_relations WHERE relation = 'supports' AND claim_a = ANY($1::bigint[]) AND claim_b = ANY($1::bigint[])",
-        [ids],
+        `SELECT claim_a, claim_b FROM claim_relations
+         WHERE relation = 'supports' AND confidence >= $2 AND claim_a = ANY($1::bigint[]) AND claim_b = ANY($1::bigint[])`,
+        [ids, cfg.SUPPORT_MIN_CONFIDENCE],
       )
     : [];
   const { conflicts, claims } = groupEvidence(retrieved, pairs, supports, cfg.CONFLICT_MIN_SIMILARITY);
@@ -171,7 +232,7 @@ export async function ask(question: string, userId: number | null, opts: { compa
 
   let plain: AskResult["plain"];
   if (opts.compare) {
-    const plainClaims = (await retrievePlain(qv, cfg.RETRIEVAL_K, cfg.MIN_SIMILARITY)).map(toEvidence);
+    const plainClaims = (await retrievePlain(qv, cfg.RETRIEVAL_K, cfg.MIN_SIMILARITY)).map((r) => toEvidence(r));
     plain = { answer: await llm.answerPlain(question, plainClaims), claims: plainClaims.slice(0, 3) };
   }
 

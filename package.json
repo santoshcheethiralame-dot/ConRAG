@@ -11,6 +11,7 @@
     "db:dev": "tsx scripts/dev-db.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
     "db:reset": "tsx --env-file=.env scripts/migrate.ts --reset",
+    "db:backfill": "tsx --env-file=.env scripts/backfill.ts",
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
     "test": "tsx scripts/run-tests.ts",
     "demo:load": "tsx --env-file=.env scripts/load-demo.ts",
