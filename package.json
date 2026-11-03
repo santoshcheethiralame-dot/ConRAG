@@ -1,6 +1,30 @@
 {
   "name": "conrag",
   "version": "0.1.0",
+  "description": "Contradiction-aware retrieval-augmented generation: finds conflicts between sources at ingest and answers with both sides.",
+  "license": "MIT",
+  "author": "Santosh Cheethirala",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santoshcheethiralame-dot/ConRAG.git"
+  },
+  "bugs": {
+    "url": "https://github.com/santoshcheethiralame-dot/ConRAG/issues"
+  },
+  "homepage": "https://github.com/santoshcheethiralame-dot/ConRAG#readme",
+  "keywords": [
+    "rag",
+    "retrieval-augmented-generation",
+    "contradiction-detection",
+    "knowledge-base",
+    "pgvector",
+    "postgresql",
+    "nextjs",
+    "embeddings"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",

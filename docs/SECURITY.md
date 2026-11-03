@@ -1,4 +1,6 @@
-# Security
+# Security design
+
+How ConRAG protects its data, and where it does not. To **report a vulnerability**, follow the [security policy](../SECURITY.md).
 
 ## Controls
 

@@ -79,4 +79,6 @@ Built by one student working alone. The brief expects two-member teams, so this 
 
 ## Future work
 
+The prioritised list, with rationale, is in [ROADMAP.md](ROADMAP.md). In summary:
+
 Model-based judge calibration on a larger human-labelled set; temporal validity ("true until 2025-06") as a first-class column; claim-level provenance spans in the original text; scheduled re-judging when the judge improves; PDF ingestion; per-source reliability learned from resolutions with a proper Bayesian update.

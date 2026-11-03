@@ -1,5 +1,7 @@
 # Testing
 
+How ConRAG is tested, what each layer proves, and how to run it.
+
 Four layers, all runnable offline with no API key.
 
 | Layer | Command | Tests | What it proves |
